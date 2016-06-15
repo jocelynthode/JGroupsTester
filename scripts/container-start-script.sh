@@ -18,3 +18,4 @@ sleep 1m
 
 echo 'Starting epto peer: starting java' | addtime > localhost.txt 2>&1
 exec java -Xms50m -Xmx250m -Djava.net.preferIPv4Stack=true -cp ../build/libs/jgroups-tester-1.0-SNAPSHOT-all.jar EventTesterKt | addtime >> localhost.txt 2>&1
+

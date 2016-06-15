@@ -12,6 +12,7 @@ plugins {
     id 'idea'
     id 'application'
     id 'com.github.johnrengelman.shadow' version '1.2.3'
+    id 'com.palantir.docker' version '0.5.2'
 }
 apply plugin: 'kotlin'
 
@@ -34,3 +35,11 @@ dependencies {
     compile 'org.jgroups:jgroups:3.6.9.Final'
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 }
+
+docker {
+    name 'jgroup'
+    dockerfile 'Dockerfile'
+    dependsOn tasks.shadowJar
+    files 'docker-compose.yml', 'scripts/run_tester.rb'
+}
+
