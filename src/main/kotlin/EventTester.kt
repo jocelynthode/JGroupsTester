@@ -13,7 +13,7 @@ class EventTester : ReceiverAdapter() {
 
     var channel = JChannel("sequencer.xml")
     val MAX_EVENTS_SENT = 12
-    val TIME_TO_WAIT = 60000L
+    val TIME_TO_WAIT = 180000L
 
     fun start() {
         channel.receiver = this
