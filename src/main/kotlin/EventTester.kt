@@ -12,8 +12,8 @@ import java.util.*
 class EventTester : ReceiverAdapter() {
 
     var channel = JChannel("sequencer.xml")
-    val MAX_EVENTS_SENT = 20
-    val TIME_TO_WAIT = 30000L
+    val MAX_EVENTS_SENT = 12
+    val TIME_TO_WAIT = 60000L
 
     fun start() {
         channel.receiver = this
@@ -23,10 +23,13 @@ class EventTester : ReceiverAdapter() {
         // Give time for all peers to join
         Thread.sleep(TIME_TO_WAIT)
         while(eventsSent != MAX_EVENTS_SENT) {
-            channel.send(Message(null, null, "${UUID.randomUUID()}"))
+	    val msg = Message(null, null, "${UUID.randomUUID()}")
+            channel.send(msg)
             eventsSent++
+	    println("Sent: ${msg.src} : ${msg.`object`}")
             Thread.sleep(1000)
         }
+	println(eventsSent)
         //channel.close()
     }
 
@@ -35,7 +38,7 @@ class EventTester : ReceiverAdapter() {
     }
 
     override fun receive(msg: Message) {
-        println("${msg.src} : ${msg.`object`}")
+        println("Delivered: ${msg.src} : ${msg.`object`}")
     }
 }
 
