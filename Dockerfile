@@ -1,31 +1,17 @@
-FROM ubuntu:14.04
+FROM debian:jessie
 
+RUN echo 'deb http://mirror.switch.ch/ftp/mirror/debian/ jessie-backports main' >> /etc/apt/sources.list && \
+    apt-get -yqq update && \
+    apt-get -yqq dist-upgrade && \
+    apt-get -yqq install --no-install-recommends openjdk-8-jre-headless dnsutils && \
+    apt-get -yqq clean
 
-# Add a repo where OpenJDK can be found.
-RUN apt-get update && apt dist-upgrade -yqq
+RUN mkdir -p /data
 
-RUN apt-get install -yqq software-properties-common
-RUN apt-get install -yqq dnsutils
-RUN add-apt-repository -y ppa:openjdk-r/ppa
-RUN apt-get update
+COPY *-all.jar /opt/epto/
+COPY container-start-script.sh /opt/epto/
+RUN chmod +x /opt/epto/container-start-script.sh
 
-# installing java8
-RUN apt-get install -yqq openjdk-8-jdk
+WORKDIR /opt/epto
 
-# installing gradle
-# RUN add-apt-repository -y ppa:cwchien/gradle
-# RUN apt-get update && apt-get install -yqq gradle
-
-#installing ruby
-RUN apt-get install -yqq ruby
-
-ADD . /code
-WORKDIR /code
-
-# setup gradle
-RUN ./gradlew --daemon clean shadowJar
-
-RUN chmod +x /code/scripts/container-start-script.sh
-
-RUN echo 'start App'
-CMD ["/code/scripts/container-start-script.sh"]
+CMD ["/opt/epto/container-start-script.sh"]

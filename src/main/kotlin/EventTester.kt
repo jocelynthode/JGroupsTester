@@ -13,7 +13,7 @@ class EventTester : ReceiverAdapter() {
 
     var channel = JChannel("sequencer.xml")
     val MAX_EVENTS_SENT = 12
-    val TIME_TO_WAIT = 180000L
+    val TIME_TO_WAIT = 30000L
 
     fun start() {
         channel.receiver = this
@@ -38,7 +38,7 @@ class EventTester : ReceiverAdapter() {
     }
 
     override fun receive(msg: Message) {
-        println("Delivered: ${msg.src} : ${msg.`object`}")
+        println("${msg.src} : ${msg.`object`}")
     }
 }
 
