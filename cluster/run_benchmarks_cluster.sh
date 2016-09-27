@@ -8,36 +8,25 @@ PEER_NUMBER=$1
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service && \
-parallel-ssh -h hosts "docker swarm leave" && docker network rm jgroups-network && \
-docker swarm leave --force && exit' TERM INT
+trap 'exit' TERM INT
 
 docker pull swarm-m:5000/jgroups:latest
+parallel-ssh -h hosts "docker pull swarm-m:5000/jgroups:latest"
 
-docker swarm init
-TOKEN=$(docker swarm join-token -q worker)
-parallel-ssh -h hosts "docker swarm join --token ${TOKEN} ${MANAGER_IP}:2377"
-
-# If networking doesn't work use ingress
-docker network create -d overlay --subnet=10.0.93.0/24 jgroups-network
-docker service create --name jgroups-service --network jgroups-network --replicas ${PEER_NUMBER} \
- --limit-memory 370m --log-driver=journald  \
- --restart-condition none --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups
+parallel-ssh -h hosts "for i in {1..17}; do docker run --network host -d --env \"FILENAME=\${i}\" \
+-v /home/debian/data:/data swarm-m:5000/jgroups; done"
+for i in {1..13}; do docker run --network host -d --env "FILENAME=${i}" \
+-v /home/debian/data:/data swarm-m:5000/jgroups; done
 
 echo "Fleshing out the network..."
-sleep 180s
+sleep 20s
 
 #wait for apps to finish
-for i in {1..60} :
+for i in {1..100} :
 do
 	sleep 20s
     echo "waiting..."
 done
-
-docker service rm jgroups-service
-docker network rm jgroups-network
-parallel-ssh -h hosts "docker swarm leave"
-docker swarm leave --force
 
 
 #while read ip; do
