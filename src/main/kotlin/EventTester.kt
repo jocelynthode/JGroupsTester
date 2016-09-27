@@ -1,4 +1,5 @@
 import org.jgroups.*
+import java.net.InetAddress
 import java.util.*
 
 /**
@@ -17,8 +18,10 @@ class EventTester : ReceiverAdapter() {
 
     fun start() {
         channel.receiver = this
+        channel.protocolStack.findProtocol("UDP").setValue("bind_addr", InetAddress.getByName("10.0.93.2"))
         channel.connect("EventCluster")
         var eventsSent = 0
+        println(channel.address.toString())
 
         // Give time for all peers to join
         Thread.sleep(TIME_TO_WAIT)
@@ -38,7 +41,7 @@ class EventTester : ReceiverAdapter() {
     }
 
     override fun receive(msg: Message) {
-        println("${msg.src} : ${msg.`object`}")
+        println("${msg.src} : Delivered ${msg.`object`}")
     }
 }
 

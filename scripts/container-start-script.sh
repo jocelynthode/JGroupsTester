@@ -10,7 +10,7 @@ addtime() {
 MY_IP_ADDR=$(/bin/hostname -i)
 
 # wait for all peers
-sleep 2m
+sleep 20s
 echo 'Starting jgroup peer'
 echo "${MY_IP_ADDR}"
 echo "${PEER_NUMBER}"
