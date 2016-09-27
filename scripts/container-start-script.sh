@@ -16,4 +16,6 @@ echo "${MY_IP_ADDR}"
 echo "${PEER_NUMBER}"
 MY_IP_ADDR=($MY_IP_ADDR)
 echo "${MY_IP_ADDR[0]}"
-exec java -Xms50m -Xmx200m -cp ./jgroups-tester-1.0-SNAPSHOT-all.jar EventTesterKt > "/data/${MY_IP_ADDR[0]}.txt" 2>&1
+exec java -Xms150m -Xmx330m -Djgroups.bind_addr="${MY_IP_ADDR[0]}" -Djava.net.preferIPv4Stack=true \
+ -cp ./jgroups-tester-1.0-SNAPSHOT-all.jar EventTesterKt > "/data/${MY_IP_ADDR[0]}.txt" 2>&1
+ls

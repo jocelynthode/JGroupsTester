@@ -18,7 +18,6 @@ class EventTester : ReceiverAdapter() {
 
     fun start() {
         channel.receiver = this
-        channel.protocolStack.findProtocol("UDP").setValue("bind_addr", InetAddress.getByName("10.0.93.2"))
         channel.connect("EventCluster")
         var eventsSent = 0
         println(channel.address.toString())
@@ -29,7 +28,7 @@ class EventTester : ReceiverAdapter() {
 	    val msg = Message(null, null, "${UUID.randomUUID()}")
             channel.send(msg)
             eventsSent++
-	    println("Sent: ${msg.src} : ${msg.`object`}")
+	    //println("Sent: ${msg.src} : ${msg.`object`}")
             Thread.sleep(1000)
         }
 	println(eventsSent)

@@ -21,7 +21,8 @@ parallel-ssh -h hosts "docker swarm join --token ${TOKEN} ${MANAGER_IP}:2377"
 # If networking doesn't work use ingress
 docker network create -d overlay --subnet=10.0.93.0/24 jgroups-network
 docker service create --name jgroups-service --network jgroups-network --replicas ${PEER_NUMBER} \
- --limit-memory 500m --log-driver=journald --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups
+ --limit-memory 370m --log-driver=journald  \
+ --restart-condition none --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups
 
 echo "Fleshing out the network..."
 sleep 180s
