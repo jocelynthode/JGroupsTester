@@ -14,7 +14,9 @@ class EventTester : ReceiverAdapter() {
 
     var channel = JChannel("sequencer.xml")
     val MAX_EVENTS_SENT = 12
-    val TIME_TO_WAIT = 60000L
+    val TIME_TO_WAIT = 120000L
+    val TOTAL_MESSAGES = 250 * MAX_EVENTS_SENT
+    var deliveredMessages = 0
 
     fun start() {
         channel.receiver = this
@@ -22,7 +24,7 @@ class EventTester : ReceiverAdapter() {
         var eventsSent = 0
         println(channel.address.toString())
 
-        // Give time for all peers to join
+        // Give time for all peers to join //TODO verify it doesn't block
         Thread.sleep(TIME_TO_WAIT)
         while(eventsSent != MAX_EVENTS_SENT) {
 	    val msg = Message(null, null, "${UUID.randomUUID()}")
@@ -42,6 +44,12 @@ class EventTester : ReceiverAdapter() {
 
     override fun receive(msg: Message) {
         println("${msg.src} : Delivered ${msg.`object`}")
+        deliveredMessages++
+        if (deliveredMessages >= TOTAL_MESSAGES) {
+            println("All messages have been delivered !")
+            System.exit(0)
+        }
+
     }
 }
 
