@@ -1,3 +1,4 @@
+import org.apache.logging.log4j.LogManager
 import org.jgroups.*
 import java.net.InetAddress
 import java.util.*
@@ -12,10 +13,12 @@ import java.util.*
 
 class EventTester : ReceiverAdapter() {
 
+    val logger = LogManager.getLogger(this.javaClass)
+
     var channel = JChannel("sequencer.xml")
     val MAX_EVENTS_SENT = 12
-    val TIME_TO_WAIT = 120000L
-    val TOTAL_MESSAGES = 250 * MAX_EVENTS_SENT
+    val TIME_TO_WAIT = 0L
+    val TOTAL_MESSAGES = 150 * MAX_EVENTS_SENT
     var deliveredMessages = 0
 
     fun start() {
@@ -38,15 +41,15 @@ class EventTester : ReceiverAdapter() {
     }
 
     override fun viewAccepted(newView: View) {
-        println("** size: ${newView.size()} ** view: $newView")
+        logger.debug("** size: ${newView.size()} ** view: $newView")
 
     }
 
     override fun receive(msg: Message) {
-        println("${msg.src} : Delivered ${msg.`object`}")
+        logger.info("${msg.src} : Delivered ${msg.`object`}")
         deliveredMessages++
         if (deliveredMessages >= TOTAL_MESSAGES) {
-            println("All messages have been delivered !")
+            logger.info("All messages have been delivered !")
             System.exit(0)
         }
 
