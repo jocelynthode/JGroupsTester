@@ -1,3 +1,5 @@
+import net.sourceforge.argparse4j.ArgumentParsers
+import net.sourceforge.argparse4j.inf.ArgumentParserException
 import org.apache.logging.log4j.LogManager
 import org.jgroups.*
 import java.net.InetAddress
@@ -10,34 +12,27 @@ import java.util.*
  *
  * @author Jocelyn Thode
  */
-
-class EventTester : ReceiverAdapter() {
+class EventTester(val MAX_EVENTS_SENT: Int, peerNumber: Int) : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)
 
     var channel = JChannel("sequencer.xml")
-    val MAX_EVENTS_SENT = 12
-    val TIME_TO_WAIT = 0L
-    val TOTAL_MESSAGES = 150 * MAX_EVENTS_SENT
+    val TOTAL_MESSAGES = peerNumber * MAX_EVENTS_SENT
     var deliveredMessages = 0
 
     fun start() {
         channel.receiver = this
         channel.connect("EventCluster")
         var eventsSent = 0
-        println(channel.address.toString())
+        logger.info(channel.address.toString())
 
-        // Give time for all peers to join //TODO verify it doesn't block
-        Thread.sleep(TIME_TO_WAIT)
-        while(eventsSent != MAX_EVENTS_SENT) {
-	    val msg = Message(null, null, "${UUID.randomUUID()}")
+        while (eventsSent != MAX_EVENTS_SENT) {
+            val msg = Message(null, null, "${UUID.randomUUID()}")
             channel.send(msg)
             eventsSent++
-	    //println("Sent: ${msg.src} : ${msg.`object`}")
+            logger.info("sent: ${msg.`object`}")
             Thread.sleep(1000)
         }
-	println(eventsSent)
-        //channel.close()
     }
 
     override fun viewAccepted(newView: View) {
@@ -56,8 +51,24 @@ class EventTester : ReceiverAdapter() {
     }
 }
 
-fun main(args: Array<String>){
-    val eventTester = EventTester()
-    eventTester.start()
-    while(true) Thread.sleep(500)
+fun main(args: Array<String>) {
+    val parser = ArgumentParsers.newArgumentParser("EpTO tester")
+    parser.defaultHelp(true)
+    parser.addArgument("peerNumber").help("Peer number")
+            .type(Integer.TYPE)
+            .setDefault(35)
+    parser.addArgument("-e", "--events").help("Number of events to send")
+            .type(Integer.TYPE)
+            .setDefault(12)
+
+    try {
+        val res = parser.parseArgs(args)
+        println("pn: ${res.getInt("peerNumber")}")
+        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"))
+        eventTester.start()
+        while (true) Thread.sleep(500)
+    } catch (e: ArgumentParserException) {
+        parser.handleError(e)
+    }
+
 }
