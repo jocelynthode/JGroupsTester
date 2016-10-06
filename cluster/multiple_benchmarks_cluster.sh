@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This scripts runs the benchmarks on a remote cluster
 
-MANAGER_IP=172.16.2.53
+MANAGER_IP=172.16.2.98
 PEER_NUMBER=$1
 
 
@@ -24,13 +24,13 @@ parallel-ssh -t 0 -h hosts "docker pull swarm-m:5000/jgroups:latest"
 for i in {1..10}
 do
     echo "Running JGroups tester $PEER_NUMBER peers - $i"
-    # 150 nodes across 12 vms
-    parallel-ssh -t 0 -h hosts "for i in {1..13}; do docker run --network host -d --env \"FILENAME=\${i}\" \
-    -v /home/debian/data:/data swarm-m:5000/jgroups; done"
-    for i in {1..7}; do docker run --network host -d --env "FILENAME=${i}" \
-    -v /home/debian/data:/data swarm-m:5000/jgroups; done
+    # 60 nodes across 12 vms
+    parallel-ssh -t 0 -h hosts "for i in {1..5}; do docker run --network host -d --env \"FILENAME=\${i}\" \
+     --env \"PEER_NUMBER=$PEER_NUMBER\" -v /home/debian/data:/data swarm-m:5000/jgroups; done"
+    for i in {1..5}; do docker run --network host -d --env "FILENAME=${i}" \
+    --env "PEER_NUMBER=$PEER_NUMBER" -v /home/debian/data:/data swarm-m:5000/jgroups; done
 
-    sleep 5m
+    sleep 7m
     docker rm -f $(docker ps -f ancestor=swarm-m:5000/jgroups -q)
     parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -f ancestor=swarm-m:5000/jgroups -q)"
     echo "Removed services"
