@@ -2,7 +2,6 @@ import net.sourceforge.argparse4j.ArgumentParsers
 import net.sourceforge.argparse4j.inf.ArgumentParserException
 import org.apache.logging.log4j.LogManager
 import org.jgroups.*
-import java.net.InetAddress
 import java.util.*
 
 /**
@@ -12,9 +11,9 @@ import java.util.*
  *
  * @author Jocelyn Thode
  */
-class EventTester(val MAX_EVENTS_SENT: Int, peerNumber: Int) : ReceiverAdapter() {
+class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapter() {
 
-    val logger = LogManager.getLogger(this.javaClass)
+    val logger = LogManager.getLogger(this.javaClass)!!
 
     var channel = JChannel("sequencer.xml")
     val TOTAL_MESSAGES = peerNumber * MAX_EVENTS_SENT
@@ -26,25 +25,29 @@ class EventTester(val MAX_EVENTS_SENT: Int, peerNumber: Int) : ReceiverAdapter()
         var eventsSent = 0
         logger.info(channel.address.toString())
 
+        //Start test when everyone is here
+        while (channel.view.size() < peerNumber) {
+            Thread.sleep(10)
+        }
+        logger.info("View size: ${channel.view.size()}")
         while (eventsSent != MAX_EVENTS_SENT) {
             val msg = Message(null, null, "${UUID.randomUUID()}")
             channel.send(msg)
             eventsSent++
-            logger.info("sent: ${msg.`object`}")
+            logger.info("Sending: ${msg.`object`}")
             Thread.sleep(1000)
         }
     }
 
     override fun viewAccepted(newView: View) {
         logger.debug("** size: ${newView.size()} ** view: $newView")
-
     }
 
     override fun receive(msg: Message) {
-        logger.info("${msg.src} : Delivered ${msg.`object`}")
+        logger.info("Delivered: ${msg.`object`}")
         deliveredMessages++
         if (deliveredMessages >= TOTAL_MESSAGES) {
-            logger.info("All messages have been delivered !")
+            logger.info("All events delivered !")
             System.exit(0)
         }
 
