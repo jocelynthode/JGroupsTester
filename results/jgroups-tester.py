@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.5
 import re
+import sys
 from pathlib import Path
 
 length = 0
@@ -23,7 +24,7 @@ def extract_duration(lines):
 
 
 def all_durations():
-    for fpath in Path().glob('172.*.txt'):
+    for fpath in Path().glob(sys.argv[1]+'/**/172.*.txt'):
         global length
         length += 1
         with fpath.open() as f:
