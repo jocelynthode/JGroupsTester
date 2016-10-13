@@ -24,6 +24,7 @@ class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapt
         channel.connect("EventCluster")
         var eventsSent = 0
         logger.info(channel.address.toString())
+        logger.info("Peer Number: $peerNumber")
 
         //Start test when everyone is here
         while (channel.view.size() < peerNumber) {
@@ -31,11 +32,11 @@ class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapt
         }
         logger.info("View size: ${channel.view.size()}")
         while (eventsSent != MAX_EVENTS_SENT) {
+            Thread.sleep(1000)
             val msg = Message(null, null, "${UUID.randomUUID()}")
             logger.info("Sending: ${msg.`object`}")
             channel.send(msg)
             eventsSent++
-            Thread.sleep(1000)
         }
     }
 
@@ -70,7 +71,6 @@ fun main(args: Array<String>) {
 
     try {
         val res = parser.parseArgs(args)
-        println("Peer Number: ${res.getInt("peerNumber")}")
         val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"))
         eventTester.start()
         while (true) Thread.sleep(500)
