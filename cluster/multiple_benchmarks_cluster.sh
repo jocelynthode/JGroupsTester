@@ -18,20 +18,20 @@ echo "START..."
 trap '(docker rm -f $(docker ps -aqf ancestor=swarm-m:5000/jgroups)&);\
 parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"; exit' TERM INT
 
-docker pull swarm-m:5000/jgroups:latest
+docker pull swarm-m:5000/jgroups:latest &
 parallel-ssh -t 0 -h hosts "docker pull swarm-m:5000/jgroups:latest"
 
 
 for i in {1..10}
 do
-    # 300 nodes across 12 vms
-    for k in {1..25}; do docker run --network host -d --env "FILENAME=${k}" -m 250m \
+    # 100 nodes across 12 vms
+    for k in {1..12}; do docker run --network host -d --env "FILENAME=${k}" -m 250m \
     --env "PEER_NUMBER=$PEER_NUMBER" -v /home/debian/data:/data swarm-m:5000/jgroups; done &
-    parallel-ssh -t 0 -h hosts "for i in {1..25}; do docker run --network host -d --env \"FILENAME=\${i}\" \
+    parallel-ssh -t 0 -h hosts "for i in {1..8}; do docker run --network host -d --env \"FILENAME=\${i}\" \
      --env \"PEER_NUMBER=$PEER_NUMBER\" -m 250m -v /home/debian/data:/data swarm-m:5000/jgroups; done"
 
     echo "Running JGroups tester $PEER_NUMBER peers - $i"
-    sleep 6m
+    sleep 2m
     docker rm -f $(docker ps -aqf ancestor=swarm-m:5000/jgroups) &
     parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"
     echo "Removed services"
