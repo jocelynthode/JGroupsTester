@@ -32,9 +32,9 @@ class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapt
         logger.info("View size: ${channel.view.size()}")
         while (eventsSent != MAX_EVENTS_SENT) {
             val msg = Message(null, null, "${UUID.randomUUID()}")
+            logger.info("Sending: ${msg.`object`}")
             channel.send(msg)
             eventsSent++
-            logger.info("Sending: ${msg.`object`}")
             Thread.sleep(1000)
         }
     }
@@ -48,6 +48,10 @@ class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapt
         deliveredMessages++
         if (deliveredMessages >= TOTAL_MESSAGES) {
             logger.info("All events delivered !")
+            logger.info("Messages sent: ${channel.sentMessages}")
+            logger.info("Messages received: ${channel.receivedMessages}")
+            logger.info("Bytes sent: ${channel.sentBytes}")
+            logger.info("Bytes received: ${channel.receivedBytes}")
             System.exit(0)
         }
 
@@ -66,7 +70,7 @@ fun main(args: Array<String>) {
 
     try {
         val res = parser.parseArgs(args)
-        println("pn: ${res.getInt("peerNumber")}")
+        println("Peer Number: ${res.getInt("peerNumber")}")
         val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"))
         eventTester.start()
         while (true) Thread.sleep(500)
