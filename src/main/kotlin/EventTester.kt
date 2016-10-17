@@ -11,12 +11,12 @@ import java.util.*
  *
  * @author Jocelyn Thode
  */
-class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
     var channel = JChannel("sequencer.xml")
-    val TOTAL_MESSAGES = peerNumber * MAX_EVENTS_SENT
+    val TOTAL_MESSAGES = peerNumber * eventsToSend
     var deliveredMessages = 0
 
     fun start() {
@@ -31,7 +31,8 @@ class EventTester(val MAX_EVENTS_SENT: Int, val peerNumber: Int) : ReceiverAdapt
             Thread.sleep(10)
         }
         logger.info("View size: ${channel.view.size()}")
-        while (eventsSent != MAX_EVENTS_SENT) {
+        logger.info("Sending: $eventsToSend events (rate: 1 per second)")
+        while (eventsSent != eventsToSend) {
             Thread.sleep(1000)
             val msg = Message(null, null, "${UUID.randomUUID()}")
             logger.info("Sending: ${msg.`object`}")
