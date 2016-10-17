@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # This scripts runs the benchmarks on a remote cluster
 
-MANAGER_IP=172.16.2.98
+MANAGER_IP=172.16.2.119
 PEER_NUMBER=$1
 
 
