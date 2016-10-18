@@ -36,7 +36,8 @@ do
     parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"
     echo "Removed services"
     while read ip; do
-        rsync --remove-source-files -av "${ip}:~/data/*.txt" "../data/test-$i/"
+        rsync --remove-source-files -av "${ip}:~/data/" "../data/test-$i/"
     done <hosts
     mv ../data/*.txt "../data/test-$i"
+    mv ../date/capture/* "../data/test-$i"
 done

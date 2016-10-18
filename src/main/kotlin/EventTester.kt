@@ -2,6 +2,7 @@ import net.sourceforge.argparse4j.ArgumentParsers
 import net.sourceforge.argparse4j.inf.ArgumentParserException
 import org.apache.logging.log4j.LogManager
 import org.jgroups.*
+import java.io.File
 import java.util.*
 
 /**
@@ -30,6 +31,9 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter(
         while (channel.view.size() < peerNumber) {
             Thread.sleep(10)
         }
+        val randomDelay = Random().nextInt(10) * 1000L
+        logger.info("Sleeping for {}ms before sending events", randomDelay)
+        Thread.sleep(randomDelay)
         logger.info("View size: ${channel.view.size()}")
         logger.info("Sending: $eventsToSend events (rate: 1 per second)")
         while (eventsSent != eventsToSend) {
@@ -52,8 +56,6 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter(
             logger.info("All events delivered !")
             logger.info("Messages sent: ${channel.sentMessages}")
             logger.info("Messages received: ${channel.receivedMessages}")
-            logger.info("Bytes sent: ${channel.sentBytes}")
-            logger.info("Bytes received: ${channel.receivedBytes}")
             System.exit(0)
         }
 
