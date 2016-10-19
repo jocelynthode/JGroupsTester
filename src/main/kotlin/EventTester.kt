@@ -2,7 +2,6 @@ import net.sourceforge.argparse4j.ArgumentParsers
 import net.sourceforge.argparse4j.inf.ArgumentParserException
 import org.apache.logging.log4j.LogManager
 import org.jgroups.*
-import java.io.File
 import java.util.*
 
 /**
@@ -12,7 +11,7 @@ import java.util.*
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
@@ -23,7 +22,6 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter(
     fun start() {
         channel.receiver = this
         channel.connect("EventCluster")
-        var eventsSent = 0
         logger.info(channel.address.toString())
         logger.info("Peer Number: $peerNumber")
 
@@ -31,18 +29,39 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter(
         while (channel.view.size() < peerNumber) {
             Thread.sleep(10)
         }
+        runTest()
+    }
+
+    private fun runTest() {
+        /*
         val randomDelay = Random().nextInt(10) * 1000L
         logger.info("Sleeping for {}ms before sending events", randomDelay)
         Thread.sleep(randomDelay)
+        */
+        var eventsSent = 0
         logger.info("View size: ${channel.view.size()}")
-        logger.info("Sending: $eventsToSend events (rate: 1 per second)")
+        logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms)")
         while (eventsSent != eventsToSend) {
-            Thread.sleep(1000)
+            Thread.sleep(rate)
             val msg = Message(null, null, "${UUID.randomUUID()}")
             logger.info("Sending: ${msg.`object`}")
             channel.send(msg)
             eventsSent++
         }
+        var i = 0
+        while (i < 120) {
+            logger.debug("Events not yet delivered: {}", (TOTAL_MESSAGES - deliveredMessages))
+            Thread.sleep(10000)
+            i++
+        }
+        stop()
+    }
+
+    fun stop() {
+        logger.info("Ratio of events delivered: ${deliveredMessages / TOTAL_MESSAGES.toDouble()}")
+        logger.info("Messages sent: ${channel.sentMessages}")
+        logger.info("Messages received: ${channel.receivedMessages}")
+        System.exit(0)
     }
 
     override fun viewAccepted(newView: View) {
@@ -54,11 +73,8 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int) : ReceiverAdapter(
         deliveredMessages++
         if (deliveredMessages >= TOTAL_MESSAGES) {
             logger.info("All events delivered !")
-            logger.info("Messages sent: ${channel.sentMessages}")
-            logger.info("Messages received: ${channel.receivedMessages}")
-            System.exit(0)
+            stop()
         }
-
     }
 }
 
@@ -71,14 +87,16 @@ fun main(args: Array<String>) {
     parser.addArgument("-e", "--events").help("Number of events to send")
             .type(Integer.TYPE)
             .setDefault(12)
+    parser.addArgument("-r", "--rate").help("Time between each event broadcast in ms")
+            .type(Long::class.java)
+            .setDefault(1000)
 
     try {
         val res = parser.parseArgs(args)
-        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"))
+        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {
         parser.handleError(e)
     }
-
 }
