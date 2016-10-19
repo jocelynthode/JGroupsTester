@@ -31,6 +31,7 @@ do
      --env \"PEER_NUMBER=$PEER_NUMBER\" -m 250m -v /home/debian/data:/data swarm-m:5000/jgroups; done"
 
     echo "Running JGroups tester $PEER_NUMBER peers - $i"
+    #TODO fix timer
     sleep 2m
     docker rm -f $(docker ps -aqf ancestor=swarm-m:5000/jgroups) &
     parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"
