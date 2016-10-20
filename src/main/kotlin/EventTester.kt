@@ -89,7 +89,7 @@ fun main(args: Array<String>) {
             .setDefault(12)
     parser.addArgument("-r", "--rate").help("Time between each event broadcast in ms")
             .type(Long::class.java)
-            .setDefault(1000)
+            .setDefault(1000L)
 
     try {
         val res = parser.parseArgs(args)
