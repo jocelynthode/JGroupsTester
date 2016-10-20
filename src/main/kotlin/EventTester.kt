@@ -11,11 +11,12 @@ import java.util.*
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, protocolStack: String)
+: ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
-    var channel = JChannel("sequencer.xml")
+    var channel = JChannel(protocolStack)
     val TOTAL_MESSAGES = peerNumber * eventsToSend
     var deliveredMessages = 0
 
@@ -26,9 +27,9 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : 
         logger.info("Peer Number: $peerNumber")
 
         //Start test when everyone is here
-        while (channel.view.size() < peerNumber) {
-            Thread.sleep(10)
-        }
+        //while (channel.view.size() < peerNumber) {
+            Thread.sleep(10000)
+        //}
         runTest()
     }
 
@@ -58,6 +59,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : 
     }
 
     fun stop() {
+        channel.disconnect()
         logger.info("Ratio of events delivered: ${deliveredMessages / TOTAL_MESSAGES.toDouble()}")
         logger.info("Messages sent: ${channel.sentMessages}")
         logger.info("Messages received: ${channel.receivedMessages}")
@@ -84,6 +86,7 @@ fun main(args: Array<String>) {
     parser.addArgument("peerNumber").help("Peer number")
             .type(Integer.TYPE)
             .setDefault(35)
+    parser.addArgument("protocolStack").help("XML file containing the protocol stack configuration")
     parser.addArgument("-e", "--events").help("Number of events to send")
             .type(Integer.TYPE)
             .setDefault(12)
@@ -93,7 +96,8 @@ fun main(args: Array<String>) {
 
     try {
         val res = parser.parseArgs(args)
-        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"))
+        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"),
+                res.getString("protocolStack"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {

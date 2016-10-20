@@ -4,10 +4,13 @@
         <File name="File" fileName="/data/${sys:logfile.name}.txt">
             <PatternLayout pattern="%r - %msg%n"/>
         </File>
+        <Console name="STDOUT" target="SYSTEM_OUT">
+            <PatternLayout pattern="%m%n"/>
+        </Console>
     </Appenders>
     <Loggers>
-        <Root level="info">
-            <AppenderRef ref="File"/>
+        <Root level="debug">
+            <AppenderRef ref="STDOUT"/>
         </Root>
     </Loggers>
 </Configuration>

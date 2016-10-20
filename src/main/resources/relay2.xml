@@ -1,0 +1,14 @@
+<RelayConfiguration xmlns="urn:jgroups:relay:1.0">
+    <sites>
+        <site name="swarm-m">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-1">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+    </sites>
+</RelayConfiguration>
