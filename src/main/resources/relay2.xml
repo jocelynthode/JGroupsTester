@@ -10,5 +10,55 @@
                 <bridge config="global.xml" name="global"/>
             </bridges>
         </site>
+        <site name="worker-2">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-3">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-4">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-5">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-6">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-7">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-8">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-9">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-10">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
+        <site name="worker-11">
+            <bridges>
+                <bridge config="global.xml" name="global"/>
+            </bridges>
+        </site>
     </sites>
 </RelayConfiguration>

@@ -8,6 +8,8 @@ RUN echo 'deb http://mirror.switch.ch/ftp/mirror/debian/ jessie-backports main' 
 
 RUN mkdir -p /data
 
+RUN mkdir -p /host_etc
+
 COPY *-all.jar /opt/jgroups/
 COPY *.sh /opt/jgroups/
 RUN chmod +x /opt/jgroups/*.sh

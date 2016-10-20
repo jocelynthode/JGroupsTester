@@ -7,8 +7,8 @@
         xmlns="urn:org:jgroups"
         xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
     <UDP
-            mcast_port="${jgroups.udp.mcast_port:45589}"
-            mcast_addr="228.8.8.9"
+            mcast_port="${jgroups.udp.mcast_port:45595}"
+            mcast_addr="228.8.8.15"
     />
     <PING/>
     <MERGE3/>
@@ -26,6 +26,6 @@
     <SEQUENCER />
     <FRAG2/>
     <pbcast.STATE_TRANSFER />
-    <relay.RELAY2 site="worker-1" config="relay2.xml" relay_multicasts="true" />
+    <relay.RELAY2 site="worker-8" config="relay2.xml" relay_multicasts="true" />
     <FORWARD_TO_COORD />
 </config>
