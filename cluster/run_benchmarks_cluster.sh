@@ -27,6 +27,7 @@ echo "START..."
 # Clean everything at Ctrl+C
 trap 'docker service rm jgroups-service;  getlogs;  exit' TERM INT
 
+docker pull swarm-m:5000/jgroups:latest
 
 docker swarm init && \
 (TOKEN=$(docker swarm join-token -q worker) && \
