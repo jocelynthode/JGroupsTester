@@ -58,9 +58,13 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : 
     }
 
     fun stop() {
+        channel.disconnect()
         logger.info("Ratio of events delivered: ${deliveredMessages / TOTAL_MESSAGES.toDouble()}")
         logger.info("Messages sent: ${channel.sentMessages}")
         logger.info("Messages received: ${channel.receivedMessages}")
+        val stats = channel.dumpStats("UDP", mutableListOf("num_bytes_sent", "num_bytes_received"))["UDP"] as Map<*, *>
+        logger.info("Bytes sent: ${stats["num_bytes_sent"]}")
+        logger.info("Bytes received: ${stats["num_bytes_received"]}")
         System.exit(0)
     }
 
