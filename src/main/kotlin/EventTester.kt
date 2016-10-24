@@ -43,7 +43,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long) : 
         logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms)")
         while (eventsSent != eventsToSend) {
             Thread.sleep(rate)
-            val msg = Message(null, null, "${UUID.randomUUID()}")
+            val msg = Message(null, channel.address, "${UUID.randomUUID()}")
             logger.info("Sending: ${msg.`object`}")
             channel.send(msg)
             eventsSent++
