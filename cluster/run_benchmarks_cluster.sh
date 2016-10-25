@@ -3,16 +3,30 @@
 MANAGER_IP=172.16.2.119
 PEER_NUMBER=$1
 TIME_ADD=$2
+EVENTS_TO_SEND=$3
+RATE=$4
 
 if [ -z "$PEER_NUMBER" ]
   then
-    echo "you have to indicate number of peers"
+    echo "You have to indicate number of peers"
     exit
 fi
 
 if [ -z "$TIME_ADD" ]
   then
-    echo "you have to indicate by how much you want to delay JGroups start"
+    echo "You have to indicate by how much you want to delay JGroups start"
+    exit
+fi
+
+if [ -z "$EVENTS_TO_SEND" ]
+  then
+    echo "You have to indicate how many events you want to send in total per peers"
+    exit
+fi
+
+if [ -z "$RATE" ]
+  then
+    echo "You have to indicate at which rate you want to send events on each peers"
     exit
 fi
 
@@ -44,7 +58,7 @@ done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
 docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
---env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" \
+--env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=${RATE}" \
 --limit-memory 250m --log-driver=journald --restart-condition=none \
 --mount type=bind,source=/home/debian/data,target=/data \
 --mount type=bind,source=/etc,target=/host_etc swarm-m:5000/jgroups:latest
