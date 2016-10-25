@@ -58,7 +58,7 @@ done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
 docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
---env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=${RATE}" \
+--env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
 --limit-memory 250m --log-driver=journald --restart-condition=none \
 --mount type=bind,source=/home/debian/data,target=/data \
 --mount type=bind,source=/etc,target=/host_etc swarm-m:5000/jgroups:latest
