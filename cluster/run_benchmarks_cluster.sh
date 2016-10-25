@@ -2,10 +2,17 @@
 # This scripts runs the benchmarks on a remote cluster
 MANAGER_IP=172.16.2.119
 PEER_NUMBER=$1
+TIME_ADD=$2
 
 if [ -z "$PEER_NUMBER" ]
   then
     echo "you have to indicate number of peers"
+    exit
+fi
+
+if [ -z "$TIME_ADD" ]
+  then
+    echo "you have to indicate by how much you want to delay JGroups start"
     exit
 fi
 
@@ -18,23 +25,35 @@ function getlogs {
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap '(docker rm -f $(docker ps -aqf ancestor=swarm-m:5000/jgroups)&);\
-parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"; getlogs;  exit' TERM INT
+trap 'docker service rm jgroups-service;  getlogs;  exit' TERM INT
 
-echo "Pulling images"
-docker pull swarm-m:5000/jgroups:latest &
-parallel-ssh -t 0 -h hosts "docker pull swarm-m:5000/jgroups:latest"
+docker pull swarm-m:5000/jgroups:latest
 
-echo "Starting images"
-# 100 nodes across 12 vms
-for i in {1..12}; do docker run --network host -d --env "FILENAME=${i}" -m 250m \
---env "PEER_NUMBER=$PEER_NUMBER" -v /home/debian/data:/data swarm-m:5000/jgroups; done &
-parallel-ssh -t 0 -h hosts "for i in {1..8}; do docker run --network host -d --env \"FILENAME=\${i}\" \
- --env \"PEER_NUMBER=$PEER_NUMBER\" -m 250m -v /home/debian/data:/data swarm-m:5000/jgroups; done"
+docker swarm init && \
+(TOKEN=$(docker swarm join-token -q worker) && \
+parallel-ssh -t 0 -h hosts "docker swarm join --token ${TOKEN} ${MANAGER_IP}:2377" && \
+docker network create -d overlay --subnet=172.110.0.0/16 jgroups_network || exit)
 
-#TODO fix timer
-sleep 2m
-docker rm -f $(docker ps -aqf ancestor=swarm-m:5000/jgroups) &
-parallel-ssh -t 0 -h hosts "docker rm -f \$(docker ps -aqf ancestor=swarm-m:5000/jgroups)"
+TIME=$(( $(date +%s%3N) + $TIME_ADD ))
+docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
+--env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" \
+--limit-memory 250m --log-driver=journald --restart-condition=none \
+--mount type=bind,source=/home/debian/data,target=/data \
+--mount type=bind,source=/etc,target=/host_etc swarm-m:5000/jgroups:latest
 
+# wait for service to start
+while docker service ls | grep " 0/$PEER_NUMBER"
+do
+    sleep 1s
+done
+echo "Running JGroups tester..."
+# wait for service to end
+until docker service ls | grep -q " 0/$PEER_NUMBER"
+do
+    sleep 5s
+done
+
+#docker service rm jgroups-service
+
+echo "Services removed"
 getlogs

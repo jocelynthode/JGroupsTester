@@ -1,0 +1,31 @@
+<!--
+  Default stack using IP multicasting. It is similar to the "udp"
+  stack in stacks.xml, but doesn't use streaming state transfer and flushing
+  author: Bela Ban
+-->
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="urn:org:jgroups"
+        xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
+    <UDP
+            mcast_port="${jgroups.udp.mcast_port:45590}"
+            mcast_addr="228.8.8.10"
+    />
+    <PING/>
+    <MERGE3/>
+    <FD_SOCK/>
+    <FD_ALL/>
+    <VERIFY_SUSPECT/>
+    <BARRIER/>
+    <pbcast.NAKACK2/>
+    <UNICAST3/>
+    <pbcast.STABLE/>
+    <pbcast.GMS/>
+    <UFC/>
+    <MFC/>
+    <!-- SEQUENCER could also be placed just under GMS, if messages and views need to be totally ordered -->
+    <SEQUENCER />
+    <FRAG2/>
+    <pbcast.STATE_TRANSFER />
+    <relay.RELAY2 site="worker-2" config="relay2.xml" relay_multicasts="true" />
+    <FORWARD_TO_COORD />
+</config>
