@@ -2,6 +2,7 @@ import net.sourceforge.argparse4j.ArgumentParsers
 import net.sourceforge.argparse4j.inf.ArgumentParserException
 import org.apache.logging.log4j.LogManager
 import org.jgroups.*
+import java.net.SocketException
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.*
@@ -15,46 +16,50 @@ import java.util.concurrent.TimeUnit
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, protocolStack: String,
-                  val startTime: Long) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long) : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
-    var channel = JChannel(protocolStack)
+    var channel = JChannel("sequencer-tcpgossip.xml")
     val TOTAL_MESSAGES = peerNumber * eventsToSend
     var deliveredMessages = 0
     val runJGroups = Runnable {
-        var eventsSent = 0
+        try {
+            var eventsSent = 0
 
-        logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms)")
-        while (eventsSent != eventsToSend) {
-            Thread.sleep(rate)
-            val msg = Message(null, channel.address, "${UUID.randomUUID()}")
-            logger.info("Sending: ${msg.`object`}")
-            channel.send(msg)
-            eventsSent++
+            logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms)")
+            while (eventsSent != eventsToSend) {
+                Thread.sleep(rate)
+                val msg = Message(null, channel.address, "${UUID.randomUUID()}")
+                logger.info("Sending: ${msg.`object`}")
+                channel.send(msg)
+                eventsSent++
+            }
+            var i = 0
+            while (i < 120) {
+                logger.debug("Events not yet delivered: {}", (TOTAL_MESSAGES - deliveredMessages))
+                Thread.sleep(10000)
+                i++
+            }
+        } catch (e: SocketException) {
+            //Do nothing
+        } finally {
+            stop()
         }
-        var i = 0
-        while (i < 120) {
-            logger.debug("Events not yet delivered: {}", (TOTAL_MESSAGES - deliveredMessages))
-            Thread.sleep(10000)
-            i++
-        }
-        stop()
     }
 
     fun start() {
-        channel.receiver = this
-        channel.connect("EventCluster")
-        logger.info(channel.address.toString())
-        logger.info("Peer Number: $peerNumber")
+            channel.receiver = this
+            channel.connect("EventCluster")
+            logger.info(channel.address.toString())
+            logger.info("Peer Number: $peerNumber")
 
-        //Start test when everyone is here
-        //while (channel.view.size() < peerNumber) {
+            //Start test when everyone is here
+            //while (channel.view.size() < peerNumber) {
             Thread.sleep(10000)
-        //}
-        val scheduler = Executors.newScheduledThreadPool(1)
-        scheduler.schedule(runJGroups, scheduleAt(startTime), TimeUnit.MILLISECONDS)
+            //}
+            val scheduler = Executors.newScheduledThreadPool(1)
+            scheduler.schedule(runJGroups, scheduleAt(startTime), TimeUnit.MILLISECONDS)
     }
 
     private fun scheduleAt(date: Long): Long {
@@ -62,7 +67,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, pr
             logger.warn("Time given was smaller than current time, running JGroups immediately, but some events might get lost")
             return 0
         } else {
-            logger.debug("JGroups will start at {} UTC+2",
+            logger.warn("JGroups will start at {} UTC+2",
                     LocalDateTime.ofEpochSecond((date / 1000), 0, ZoneOffset.ofHours(2)))
             return (date - System.currentTimeMillis())
         }
@@ -76,6 +81,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, pr
         val stats = channel.dumpStats("UDP", mutableListOf("num_bytes_sent", "num_bytes_received"))["UDP"] as Map<*, *>
         logger.info("Bytes sent: ${stats["num_bytes_sent"]}")
         logger.info("Bytes received: ${stats["num_bytes_received"]}")
+        channel.close()
         System.exit(0)
     }
 
@@ -94,12 +100,11 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, pr
 }
 
 fun main(args: Array<String>) {
-    val parser = ArgumentParsers.newArgumentParser("EpTO tester")
+    val parser = ArgumentParsers.newArgumentParser("JGroups tester")
     parser.defaultHelp(true)
     parser.addArgument("peerNumber").help("Peer number")
             .type(Integer.TYPE)
             .setDefault(35)
-    parser.addArgument("protocolStack").help("XML file containing the protocol stack configuration")
     parser.addArgument("scheduleAt").help("Schedule Jgroups to start at a specific time in milliseconds")
             .type(Long::class.java)
     parser.addArgument("-e", "--events").help("Number of events to send")
@@ -112,7 +117,7 @@ fun main(args: Array<String>) {
     try {
         val res = parser.parseArgs(args)
         val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"),
-                res.getString("protocolStack"), res.getLong("scheduleAt"))
+                res.getLong("scheduleAt"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {
