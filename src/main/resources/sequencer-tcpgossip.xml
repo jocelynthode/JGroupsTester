@@ -1,22 +1,20 @@
+
 <!--
-  Default stack using IP multicasting. It is similar to the "udp"
-  stack in stacks.xml, but doesn't use streaming state transfer and flushing
-  author: Bela Ban
+  author: Jocelyn Thode
 -->
+
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
         xmlns="urn:org:jgroups"
         xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/jgroups.xsd">
-    <UDP
-            mcast_port="${jgroups.udp.mcast_port:45596}"
-            mcast_addr="228.8.8.16"
-    />
-    <PING/>
+    <UDP ip_mcast="false"/>
+    <TCPGOSSIP discovery_rsp_expiry_time="10000"
+               initial_hosts="${jgroups.tunnel.gossip_router_hosts:localhost[12001]}"/>
     <MERGE3/>
     <FD_SOCK/>
     <FD_ALL/>
     <VERIFY_SUSPECT/>
     <BARRIER/>
-    <pbcast.NAKACK2/>
+    <pbcast.NAKACK2 use_mcast_xmit="false"/>
     <UNICAST3/>
     <pbcast.STABLE/>
     <pbcast.GMS/>
@@ -26,6 +24,4 @@
     <SEQUENCER />
     <FRAG2/>
     <pbcast.STATE_TRANSFER />
-    <relay.RELAY2 site="worker-9" config="relay2.xml" relay_multicasts="true" />
-    <FORWARD_TO_COORD />
 </config>
