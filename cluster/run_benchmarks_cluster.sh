@@ -25,14 +25,22 @@ function getlogs {
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service;  getlogs;  exit' TERM INT
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; getlogs; exit' TERM INT
 
 docker pull swarm-m:5000/jgroups:latest
+docker pull swarm-m:5000/jgroups-tracker:latest
 
 docker swarm init && \
 (TOKEN=$(docker swarm join-token -q worker) && \
 parallel-ssh -t 0 -h hosts "docker swarm join --token ${TOKEN} ${MANAGER_IP}:2377" && \
-docker network create -d overlay --subnet=172.110.0.0/16 jgroups_network || exit)
+docker network create -d overlay --subnet=172.111.0.0/16 jgroups_network || exit)
+
+docker service create --name jgroups-tracker --network jgroups_network --replicas 1 \
+--constraint 'node.role == manager' --limit-memory 250m swarm-m:5000/jgroups-tracker:latest
+until docker service ls | grep "1/1"
+do
+    sleep 1s
+done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
 docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
@@ -53,7 +61,8 @@ do
     sleep 5s
 done
 
-#docker service rm jgroups-service
+docker service rm jgroups-tracker
+docker service rm jgroups-service
 
 echo "Services removed"
 getlogs
