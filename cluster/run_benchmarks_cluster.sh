@@ -26,7 +26,7 @@ fi
 
 if [ -z "$RATE" ]
   then
-    echo "You have to indicate at which rate you want to send events on each peers"
+    echo "You have to indicate at which rate you want to send events on each peers in ms"
     exit
 fi
 
