@@ -13,7 +13,9 @@ ssh_pid=$!
 sleep 5s
 
 docker tag jgroups:latest localhost:5000/jgroups:latest
+docker tag jgroups-tracker:latest localhost:5000/jgroups-tracker:latest
 docker push localhost:5000/jgroups:latest
+docker push localhost:5000/jgroups-tracker:latest
 
 
 kill ${ssh_pid}
