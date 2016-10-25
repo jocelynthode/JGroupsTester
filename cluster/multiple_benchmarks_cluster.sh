@@ -33,7 +33,8 @@ fi
 
 function getlogs {
     while read ip; do
-        rsync --remove-source-files -av "${ip}:~/data/" ../data/
+        rsync --remove-source-files -av "${ip}:~/data/*.txt" ../data/
+        rsync --remove-source-files -av "${ip}:~/data/capture/*.csv" ../data/capture/
     done <hosts
 }
 
