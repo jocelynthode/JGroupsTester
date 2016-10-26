@@ -36,7 +36,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
                 eventsSent++
             }
             var i = 0
-            while (i < 120) {
+            while (i < 40) {
                 logger.debug("Events not yet delivered: {}", (TOTAL_MESSAGES - deliveredMessages))
                 Thread.sleep(10000)
                 i++
