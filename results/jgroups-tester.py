@@ -16,7 +16,7 @@ args = parser.parse_args()
 PEER_NUMBER = args.peer_number
 
 
-# We must create our own iter because iter disables the tell fucntion
+# We must create our own iter because iter disables the tell function
 def textiter(file):
     line = file.readline()
     while line:
@@ -52,7 +52,6 @@ def extract_stats(file):
         return textiter(file), result
 
     it, end_at = find_end()
-    print(end_at)
     messages_sent = match_line(r'\d+ - Events sent: (\d+)')
     messages_received = match_line(r'\d+ - Events received: (\d+)')
 
