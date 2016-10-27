@@ -16,28 +16,27 @@ import java.util.concurrent.TimeUnit
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long, val fixedRate: Int) : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
     var channel = JChannel("sequencer-tcpgossip.xml")
-    val TOTAL_MESSAGES = peerNumber * eventsToSend
-    var deliveredMessages = 0
     val runJGroups = Runnable {
         try {
-            var eventsSent = 0
-
-            logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms)")
-            while (eventsSent != eventsToSend) {
-                Thread.sleep(rate)
-                val msg = Message(null, channel.address, "${UUID.randomUUID()}")
-                logger.info("Sending: ${msg.`object`}")
-                channel.send(msg)
-                eventsSent++
-            }
+            val probability: Double = if (fixedRate == -1) 1.0 else (fixedRate / peerNumber.toDouble())
+            logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms) with a probability of $probability")
             var i = 0
-            while (i < 40) {
-                logger.debug("Events not yet delivered: {}", (TOTAL_MESSAGES - deliveredMessages))
+            while (i <  eventsToSend) {
+                Thread.sleep(rate)
+                if (Math.random() < probability) {
+                    val msg = Message(null, channel.address, "${UUID.randomUUID()}")
+                    logger.info("Sending: ${msg.`object`}")
+                    channel.send(msg)
+                }
+                i++
+            }
+            i = 0
+            while (i < 30) {
                 Thread.sleep(10000)
                 i++
             }
@@ -53,11 +52,6 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
             channel.connect("EventCluster")
             logger.info(channel.address.toString())
             logger.info("Peer Number: $peerNumber")
-
-            //Start test when everyone is here
-            //while (channel.view.size() < peerNumber) {
-            Thread.sleep(10000)
-            //}
             val scheduler = Executors.newScheduledThreadPool(1)
             scheduler.schedule(runJGroups, scheduleAt(startTime), TimeUnit.MILLISECONDS)
     }
@@ -75,12 +69,8 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
 
     fun stop() {
         channel.disconnect()
-        logger.info("Ratio of events delivered: ${deliveredMessages / TOTAL_MESSAGES.toDouble()}")
-        logger.info("Messages sent: ${channel.sentMessages}")
-        logger.info("Messages received: ${channel.receivedMessages}")
-        val stats = channel.dumpStats("UDP", mutableListOf("num_bytes_sent", "num_bytes_received"))["UDP"] as Map<*, *>
-        logger.info("Bytes sent: ${stats["num_bytes_sent"]}")
-        logger.info("Bytes received: ${stats["num_bytes_received"]}")
+        logger.info("Events sent: ${channel.sentMessages}")
+        logger.info("Events received: ${channel.receivedMessages}")
         channel.close()
         System.exit(0)
     }
@@ -91,11 +81,13 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
 
     override fun receive(msg: Message) {
         logger.info("Delivered: ${msg.`object`}")
-        deliveredMessages++
+        //deliveredMessages++
+        /*
         if (deliveredMessages >= TOTAL_MESSAGES) {
             logger.info("All events delivered !")
             stop()
         }
+        */
     }
 }
 
@@ -113,11 +105,15 @@ fun main(args: Array<String>) {
     parser.addArgument("-r", "--rate").help("Time between each event broadcast in ms")
             .type(Long::class.java)
             .setDefault(1000L)
+    parser.addArgument("-u", "--fixed-rate")
+            .help("If this option is set a probability will be calculated to ensure the overall event broadcast rate is at the value fixed (events/s")
+            .type(Integer.TYPE)
+            .setDefault(-1)
 
     try {
         val res = parser.parseArgs(args)
         val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"),
-                res.getLong("scheduleAt"))
+                res.getLong("scheduleAt"), res.getInt("fixed_rate"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {
