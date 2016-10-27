@@ -5,8 +5,7 @@ from collections import namedtuple
 import statistics
 import argparse
 
-Stats = namedtuple('Stats', ['start_at', 'end_at', 'duration', 'msg_sent', 'msg_received',
-                             'bytes_sent', 'bytes_received'])
+Stats = namedtuple('Stats', ['start_at', 'end_at', 'duration', 'msg_sent', 'msg_received'])
 
 parser = argparse.ArgumentParser(description='Process JGroups logs')
 parser.add_argument('peer_number', metavar='PEER_NUMBER', type=int,
@@ -17,8 +16,16 @@ args = parser.parse_args()
 PEER_NUMBER = args.peer_number
 
 
-def extract_stats(lines):
-    it = iter(lines)  # Force re-use of same iterator
+# We must create our own iter because iter disables the tell fucntion
+def textiter(file):
+    line = file.readline()
+    while line:
+        yield line
+        line = file.readline()
+
+
+def extract_stats(file):
+    it = textiter(file)  # Force re-use of same iterator
 
     def match_line(regexp_str):
         result = 0
@@ -30,13 +37,26 @@ def extract_stats(lines):
         return result
 
     start_at = match_line(r'(\d+) - Sending:')
-    end_at = match_line(r'(\d+) - All events delivered !')
-    messages_sent = match_line(r'\d+ - Messages sent: (\d+)')
-    messages_received = match_line(r'\d+ - Messages received: (\d+)')
-    bytes_sent = match_line(r'\d+ - Bytes sent: (\d+)')
-    bytes_received = match_line(r'\d+ - Bytes received: (\d+)')
 
-    return Stats(start_at, end_at, end_at - start_at, messages_sent, messages_received, bytes_sent, bytes_received)
+    # We want the last occurrence in the file
+    def find_end():
+        result = None
+        pos = None
+        for line in it:
+            match = re.match(r'(\d+) - Delivered', line)
+            if match:
+                result = int(match.group(1))
+                pos = file.tell()
+
+        file.seek(pos)
+        return textiter(file), result
+
+    it, end_at = find_end()
+    print(end_at)
+    messages_sent = match_line(r'\d+ - Events sent: (\d+)')
+    messages_received = match_line(r'\d+ - Events received: (\d+)')
+
+    return Stats(start_at, end_at, end_at - start_at, messages_sent, messages_received)
 
 
 def all_stats():
@@ -58,8 +78,6 @@ stats = list(all_stats())
 experiments_nb = len(stats) // PEER_NUMBER
 global_times = list(global_time(experiments_nb, stats))
 durations = [stat.duration for stat in stats]
-bytes_sent = [stat.bytes_sent for stat in stats]
-bytes_received = [stat.bytes_received for stat in stats]
 mininum = min(durations)
 maximum = max(durations)
 average = statistics.mean(durations)
@@ -77,9 +95,8 @@ messages_received = [stat.msg_received for stat in stats]
 sent_sum = sum(messages_sent)
 received_sum = sum(messages_received)
 print("Total events sent: %d" % sent_sum)
-print("Total events received: %d" % received_sum)
-print("Total bytes sent: %d" % sum(bytes_sent))
-print("Total bytes received: %d" % sum(bytes_received))
+print("Total events received on a single peer: %d" % messages_received[0])
+print("Total events received across all peers: %d" % received_sum)
 
 print("------------")
 print("Average global time to deliver on all peers per experiment: %d ms" % global_average)
