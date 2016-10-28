@@ -75,6 +75,7 @@ def global_time(experiment_nb, stats):
 
 stats = list(all_stats())
 experiments_nb = len(stats) // PEER_NUMBER
+
 global_times = list(global_time(experiments_nb, stats))
 durations = [stat.duration for stat in stats]
 mininum = min(durations)
@@ -96,6 +97,26 @@ received_sum = sum(messages_received)
 print("Total events sent: %d" % sent_sum)
 print("Total events received on a single peer: %d" % messages_received[0])
 print("Total events received across all peers: %d" % received_sum)
+
+def all_delivered(experiment_nb, stats):
+    for i in range(experiment_nb):
+        start_index = i * PEER_NUMBER
+        end_index = start_index + PEER_NUMBER
+        tmp = stats[start_index:end_index]
+        total_received = tmp[0].msg_received
+        yield (sent_sum == total_received)
+
+all_delivered = list(all_delivered(experiments_nb, stats))
+def check_list_all_identical(lst):
+    return not lst or [lst[0]]*len(lst) == lst
+
+if check_list_all_identical(all_delivered):
+    print("All events sent were delivered in every experiments")
+else:
+    for idx,result in enumerate(all_delivered):
+        if not result:
+            print("Experiement %d didn't deliver every event sent")
+
 
 print("------------")
 print("Average global time to deliver on all peers per experiment: %d ms" % global_average)
