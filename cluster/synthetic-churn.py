@@ -8,42 +8,61 @@ import time
 
 parser = argparse.ArgumentParser(description='Create a synthetic churn',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('delta', type=int, default=60000,
-                    help='The interval between killing/adding new containers in ms')
-parser.add_argument('-a', '--add-new-containers', type=bool, default=False,
+parser.add_argument('delta', type=int, default=60,
+                    help='The interval between killing/adding new containers in s')
+parser.add_argument('-a', '--add-new-containers', action='store_true',
                     help='Whether we should add new containers during the churn')
+parser.add_argument('--local', action='store_true', help='Run the synthetic churn only on local node')
+parser.add_argument('--kill-coordinator', type=int, default=-1, help='Kill the coordinator at the specified period')
 args = parser.parse_args()
 DELTA = args.delta
+MAX_PERIOD = 10
 scheduler = sched.scheduler(time.time, time.sleep)
 
 
 def get_hosts():
-    with open('hosts', 'r') as file:
-       hosts = list(line.rstrip() for line in file)
-    hosts.append('localhost')
+    hosts = ['localhost']
+    if not args.local:
+        with open('hosts', 'r') as file:
+           hosts = list(line.rstrip() for line in file)
     return hosts
 
 hosts = get_hosts()
 containers = {}
-service_nb = re.search(r'(\d+)/(\d+)', subprocess.check_output(["docker", "service", "ls", "-f", "name=jgroups-service"]))
-total_nb = int(service_nb.group(2))
-current_nb = int(service_nb.group(1))
+service_nb = re.search(r'(\d+)/(\d+)', subprocess.check_output(
+    ["docker", "service", "ls", "-f", "name=jgroups-service"], universal_newlines=True))
+
+try:
+    total_nb = int(service_nb.group(2))
+    current_nb = int(service_nb.group(1))
+except AttributeError:
+    print("Service isn't running")
+    exit(1)
 
 while current_nb != total_nb:
-    service_nb = re.search(r'(\d+)/\d+', subprocess.check_output(["docker", "service", "ls", "-f", "name=jgroups-service"]))
+    service_nb = re.search(r'(\d+)/\d+', subprocess.check_output(
+        ["docker", "service", "ls", "-f", "name=jgroups-service"], universal_newlines=True))
     current_nb = int(service_nb.group(1))
-    time.sleep(5)
+    time.sleep(1)
 
 print("All containers are running")
-print("Sleeping for 180 seconds")
-time.sleep(180)
+print("Sleeping for 5 seconds")
+time.sleep(5)
 
 
 def suspend_process():
+    command_suspend = ["docker", "kill", '--signal=SIGSTOP']
+    if periods == args.kill_coordinator:
+        container = subprocess.check_output(["docker", "ps", "-aqf", "name=jgroups-coordinator", "-f",
+                                             "status=running"], universal_newlines=True).splitlines()
+        command_suspend += container
+        subprocess.run(command_suspend)
+        print("Coordinator was suspended")
+        return True
+
     choice = random.choice(hosts)
-    command_suspend = ["docker", "kill", '--signal="SIGTSTP']
-    if not containers[choice]:
-        command_ps = ["docker", "ps", "-aqf", "name=jgroups", "-f", "status=running"]
+    if choice not in containers:
+        command_ps = ["docker", "ps", "-aqf", "name=jgroups-service", "-f", "status=running"]
         if choice != 'localhost':
             command_ps = ["ssh", choice] + command_ps
 
@@ -59,6 +78,7 @@ def suspend_process():
         print("No container available")
         return False
 
+    print(container)
     command_suspend += [container]
     subprocess.run(command_suspend)
     print("Container {} on host {} was suspended".format(container, choice))
@@ -75,21 +95,19 @@ def add_suspend_process():
     if suspend_process():
         add_process()
 
-
-# From http://stackoverflow.com/a/2399145/2826574
-def periodic(scheduler, interval, action, periods, actionargs=(), initial_delay=0):
-    if initial_delay > 0:
-        time.sleep(initial_delay)
-    periods -= 1
-    if periods <= 0:
-        print("Churn finished")
-        exit(0)
-    scheduler.enter(interval, 1, periodic, (scheduler, interval, action, periods, actionargs))
-    action(*actionargs)
-
-
 print("Starting churn")
+periods = 0
+
+
+def do_churn(action, periods):
+    while periods < MAX_PERIOD:
+        periods += 1
+    action()
+    time.sleep(DELTA)
+
 if args.add_new_containers:
-    periodic(scheduler, DELTA, add_suspend_process, 10)
+    do_churn(add_suspend_process, periods)
 else:
-    periodic(scheduler, DELTA, suspend_process, 10)
+    do_churn(suspend_process, periods)
+
+print("Churn finished")

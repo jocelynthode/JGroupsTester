@@ -5,7 +5,6 @@ import org.jgroups.JChannel
 import org.jgroups.Message
 import org.jgroups.ReceiverAdapter
 import org.jgroups.View
-import sun.misc.Signal
 import java.net.SocketException
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -20,8 +19,8 @@ import java.util.concurrent.TimeUnit
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long, val fixedRate: Int,
-                  val mustSuspend: Boolean) : ReceiverAdapter() {
+class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long, val fixedRate: Int)
+: ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
 
@@ -58,14 +57,6 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
 
             logger.info(channel.address)
             logger.info("Coordinator is ${channel.view.creator}")
-
-            //Ignore SIGTSTP only if we are the coordinator and we don't want to suspend the coordinator
-            //WARNING: This uses sun.misc apis which may not work on every OS
-            if (channel.view.creator == channel.address && !mustSuspend) {
-                logger.debug("SIGTSTP will now be ignored")
-                Signal.handle(Signal("TSTP")) {/*Ignore*/}
-            }
-
             logger.info("Peer Number: $peerNumber")
             val scheduler = Executors.newScheduledThreadPool(1)
             scheduler.schedule(runJGroups, scheduleAt(startTime), TimeUnit.MILLISECONDS)
@@ -96,17 +87,6 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
 
     override fun receive(msg: Message) {
         logger.info("Delivered: ${msg.`object`}")
-        /*TODO kill if we are coordinator and we have sent
-          TODO more than X messages (probably if suspend is false)
-        */
-
-        //deliveredMessages++
-        /*
-        if (deliveredMessages >= TOTAL_MESSAGES) {
-            logger.info("All events delivered !")
-            stop()
-        }
-        */
     }
 }
 
@@ -128,15 +108,11 @@ fun main(args: Array<String>) {
             .help("If this option is set a probability will be calculated to ensure the overall event broadcast rate is at the value fixed (events/s")
             .type(Integer.TYPE)
             .setDefault(-1)
-    parser.addArgument("-s", "--suspend-coordinator")
-            .help("If this option is set to true the coordinator can and will be suspended on SIGTSTP signal")
-            .type(Boolean::class.java)
-            .setDefault(false)
 
     try {
         val res = parser.parseArgs(args)
         val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"),
-                res.getLong("scheduleAt"), res.getInt("fixed_rate"), res.getBoolean("suspend_coordinator"))
+                res.getLong("scheduleAt"), res.getInt("fixed_rate"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {

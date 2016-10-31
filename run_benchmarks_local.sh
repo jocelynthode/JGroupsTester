@@ -35,7 +35,7 @@ echo "START..."
 ./gradlew docker
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; exit' TERM INT
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; docker service rm jgroups-coordinator; exit' TERM INT
 
 docker swarm init && docker network create -d overlay --subnet=172.110.0.0/16 jgroups_network
 
@@ -47,10 +47,21 @@ do
 done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
+docker service create --name jgroups-coordinator --network jgroups_network --replicas 1 \
+--constraint 'node.role == manager' \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
 --limit-memory 250m --log-driver=journald --restart-condition=none \
 --mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
+
+docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
+--env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
+--limit-memory 250m --log-driver=journald --restart-condition=none \
+--mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
+
+while docker service ls | grep "0/1"
+do
+    sleep 1s
+done
 
 while docker service ls | grep " 0/$PEER_NUMBER"
 do
@@ -58,12 +69,17 @@ do
 done
 echo "Running JGroups tester..."
 # wait for service to end
-until docker service ls | grep -q " 0/$PEER_NUMBER"
+until docker service ls | grep -q " 0/1"
+do
+    sleep 5s
+done
+until docker service ls | grep -q "0/$PEER_NUMBER"
 do
     sleep 5s
 done
 
 docker service rm jgroups-tracker
+docker service rm jgroups-coordinator
 docker service rm jgroups-service
 
 echo "Services removed"

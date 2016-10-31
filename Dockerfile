@@ -16,4 +16,4 @@ RUN chmod +x /opt/jgroups/*.sh
 
 WORKDIR /opt/jgroups
 
-CMD ["/opt/jgroups/container-start-script.sh"]
+ENTRYPOINT ["/opt/jgroups/container-start-script.sh"]
