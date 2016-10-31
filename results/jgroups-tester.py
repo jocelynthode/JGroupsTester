@@ -10,7 +10,7 @@ Stats = namedtuple('Stats', ['start_at', 'end_at', 'duration', 'msg_sent', 'msg_
 parser = argparse.ArgumentParser(description='Process JGroups logs')
 parser.add_argument('peer_number', metavar='PEER_NUMBER', type=int,
                     help='the number of peer for an experiment')
-parser.add_argument('files', metavar='FILE', nargs='+', type=argparse.FileType('r'),
+parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse')
 args = parser.parse_args()
 PEER_NUMBER = args.peer_number
@@ -60,7 +60,9 @@ def extract_stats(file):
 
 def all_stats():
     for file in args.files:
-        yield extract_stats(file)
+        with open(file, 'r') as f:
+            file_stats = extract_stats(f)
+        yield file_stats
 
 
 def global_time(experiment_nb, stats):
