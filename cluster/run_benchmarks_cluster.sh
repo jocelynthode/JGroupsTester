@@ -5,6 +5,7 @@ PEER_NUMBER=$1
 TIME_ADD=$2
 EVENTS_TO_SEND=$3
 RATE=$4
+CHURN=$5
 
 if [ -z "$PEER_NUMBER" ]
   then
@@ -79,12 +80,17 @@ do
     sleep 1s
 done
 echo "Running JGroups tester..."
+
+NB=0
+if [ -n "$CHURN" ]
+  then
+    NB=${CHURN}
+    sleep 20s
+    echo "Running synthetic churn"
+    ./synthetic-churn.py -a --kill-coordinator $(($CHURN / 2)) -p ${CHURN} 60 &
+fi
 # wait for service to end
-until docker service ls | grep -q " 0/1"
-do
-    sleep 5s
-done
-until docker service ls | grep -q " 0/$PEER_NUMBER"
+until docker service ls | grep -q " ${NB}/$PEER_NUMBER"
 do
     sleep 5s
 done

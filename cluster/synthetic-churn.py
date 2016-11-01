@@ -10,13 +10,14 @@ parser = argparse.ArgumentParser(description='Create a synthetic churn',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('delta', type=int, default=60,
                     help='The interval between killing/adding new containers in s')
-parser.add_argument('-a', '--add-new-containers', action='store_true',
+parser.add_argument('--add-new-containers', '-a', action='store_true',
                     help='Whether we should add new containers during the churn')
 parser.add_argument('--local', action='store_true', help='Run the synthetic churn only on local node')
 parser.add_argument('--kill-coordinator', type=int, default=-1, help='Kill the coordinator at the specified period')
+parser.add_argument('--periods', '-p', type=int, default=10, help='How many period should the churn run for')
 args = parser.parse_args()
 DELTA = args.delta
-MAX_PERIOD = 10
+MAX_PERIOD = args.periods
 periods = 0
 scheduler = sched.scheduler(time.time, time.sleep)
 
@@ -41,6 +42,7 @@ except AttributeError:
     exit(1)
 
 while current_nb != total_nb:
+    print("waiting for service to create all containers...")
     service_nb = re.search(r'(\d+)/\d+', subprocess.check_output(
         ["docker", "service", "ls", "-f", "name=jgroups-service"], universal_newlines=True))
     current_nb = int(service_nb.group(1))
