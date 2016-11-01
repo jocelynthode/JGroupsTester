@@ -9,6 +9,7 @@
         </Console>
     </Appenders>
     <Loggers>
+        <Logger name="EventTester" level="info"/>
         <Root level="info">
             <AppenderRef ref="File"/>
         </Root>

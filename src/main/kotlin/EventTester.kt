@@ -38,6 +38,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
                     channel.send(msg)
                 }
                 i++
+                logger.debug("Coordinator is {}", channel.view.creator)
             }
             i = 0
             while (i < 30) {
@@ -82,7 +83,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
     }
 
     override fun viewAccepted(newView: View) {
-        logger.debug("** size: ${newView.size()} ** view: $newView")
+        logger.debug("** size: {} ** view: {}", newView.size(), newView)
     }
 
     override fun receive(msg: Message) {

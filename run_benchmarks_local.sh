@@ -53,15 +53,16 @@ docker service create --name jgroups-coordinator --network jgroups_network --rep
 --limit-memory 250m --log-driver=journald --restart-condition=none \
 --mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
 
+while docker service ls | grep " 0/1"
+do
+    sleep 1s
+done
+
 docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
 --limit-memory 250m --log-driver=journald --restart-condition=none \
 --mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
 
-while docker service ls | grep "0/1"
-do
-    sleep 1s
-done
 
 while docker service ls | grep " 0/$PEER_NUMBER"
 do
@@ -73,7 +74,7 @@ until docker service ls | grep -q " 0/1"
 do
     sleep 5s
 done
-until docker service ls | grep -q "0/$PEER_NUMBER"
+until docker service ls | grep -q " 0/$PEER_NUMBER"
 do
     sleep 5s
 done

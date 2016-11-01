@@ -39,7 +39,8 @@ function getlogs {
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; getlogs; exit' TERM INT
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker;docker service rm jgroups-coordinator; \
+sleep 15s; getlogs; exit' TERM INT
 
 docker pull swarm-m:5000/jgroups:latest
 docker pull swarm-m:5000/jgroups-tracker:latest
@@ -57,9 +58,19 @@ do
 done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
+docker service create --name jgroups-coordinator --network jgroups_network --replicas 1 \
+--constraint 'node.role == manager' \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
---limit-memory 300m --log-driver=journald --restart-condition=none \
+--limit-memory 300m --restart-condition=none \
+--mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
+
+while docker service ls | grep " 0/1"
+do
+    sleep 1s
+done
+docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
+--env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
+--limit-memory 300m --restart-condition=none \
 --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
 
 # wait for service to start
@@ -69,13 +80,19 @@ do
 done
 echo "Running JGroups tester..."
 # wait for service to end
+until docker service ls | grep -q " 0/1"
+do
+    sleep 5s
+done
 until docker service ls | grep -q " 0/$PEER_NUMBER"
 do
     sleep 5s
 done
 
 docker service rm jgroups-tracker
+docker service rm jgroups-coordinator
 docker service rm jgroups-service
 
 echo "Services removed"
+sleep 1m
 getlogs

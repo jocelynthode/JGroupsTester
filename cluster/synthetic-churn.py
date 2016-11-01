@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.5
+#!/usr/bin/env python3
 import subprocess
 import random
 import re
@@ -17,6 +17,7 @@ parser.add_argument('--kill-coordinator', type=int, default=-1, help='Kill the c
 args = parser.parse_args()
 DELTA = args.delta
 MAX_PERIOD = 10
+periods = 0
 scheduler = sched.scheduler(time.time, time.sleep)
 
 
@@ -46,17 +47,18 @@ while current_nb != total_nb:
     time.sleep(1)
 
 print("All containers are running")
-print("Sleeping for 5 seconds")
-time.sleep(5)
+print("Sleeping for 180 seconds")
+time.sleep(180)
 
 
 def suspend_process():
+    global periods
     command_suspend = ["docker", "kill", '--signal=SIGSTOP']
     if periods == args.kill_coordinator:
         container = subprocess.check_output(["docker", "ps", "-aqf", "name=jgroups-coordinator", "-f",
                                              "status=running"], universal_newlines=True).splitlines()
         command_suspend += container
-        subprocess.run(command_suspend)
+        subprocess.call(command_suspend)
         print("Coordinator was suspended")
         return True
 
@@ -71,16 +73,15 @@ def suspend_process():
     if choice != 'localhost':
         command_suspend = ["ssh", choice] + command_suspend
 
-    container = random.choice(containers[choice])
     try:
+        container = random.choice(containers[choice])
         containers[choice].remove(container)
-    except ValueError:
+    except ValueError or IndexError:
         print("No container available")
         return False
 
-    print(container)
     command_suspend += [container]
-    subprocess.run(command_suspend)
+    subprocess.call(command_suspend)
     print("Container {} on host {} was suspended".format(container, choice))
     return True
 
@@ -88,7 +89,7 @@ def suspend_process():
 def add_process():
     global total_nb
     total_nb += 1
-    subprocess.run(["docker", "service", "scale", "jgroups-service={:d}".format(total_nb)])
+    subprocess.call(["docker", "service", "scale", "jgroups-service={:d}".format(total_nb)])
 
 
 def add_suspend_process():
@@ -96,18 +97,18 @@ def add_suspend_process():
         add_process()
 
 print("Starting churn")
-periods = 0
 
 
-def do_churn(action, periods):
+def do_churn(action):
+    global periods
     while periods < MAX_PERIOD:
+        action()
         periods += 1
-    action()
-    time.sleep(DELTA)
+        time.sleep(DELTA)
 
 if args.add_new_containers:
-    do_churn(add_suspend_process, periods)
+    do_churn(add_suspend_process)
 else:
-    do_churn(suspend_process, periods)
+    do_churn(suspend_process)
 
 print("Churn finished")
