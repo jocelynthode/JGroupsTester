@@ -122,6 +122,7 @@ if __name__ == '__main__':
 
     # Add initial cluster
     churn.add_processes(nodes_trace.initial_size())
+    nodes_trace.next()
 
     logging.info("Sleeping for {:d} seconds".format(args.delay))
     time.sleep(args.delay)
