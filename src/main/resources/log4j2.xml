@@ -10,6 +10,7 @@
     </Appenders>
     <Loggers>
         <Logger name="EventTester" level="info"/>
+        <Logger name="org.jgroups.stack.GossipRouter" level="info"/>
         <Root level="info">
             <AppenderRef ref="File"/>
         </Root>
