@@ -27,6 +27,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
     var channel = JChannel("sequencer-tcpgossip.xml")
     val runJGroups = Runnable {
         try {
+            logger.info("View: ${channel.view.members.joinToString(separator = ",") { it.toString().substringBefore('-') } }")
             val probability: Double = if (fixedRate == -1) 1.0 else (fixedRate / peerNumber.toDouble())
             logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms) with a probability of $probability")
             var i = 0
@@ -83,6 +84,7 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
     }
 
     override fun viewAccepted(newView: View) {
+        logger.info("View size: ${channel.view.size()}")
         logger.debug("** size: {} ** view: {}", newView.size(), newView)
     }
 
