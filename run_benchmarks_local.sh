@@ -2,6 +2,7 @@
 # This scripts runs the benchmarks on a remote cluster
 
 MANAGER_IP=172.16.2.119
+LOG_STORAGE=/home/jocelyn/tmp/data/
 PEER_NUMBER=$1
 TIME_ADD=$2
 EVENTS_TO_SEND=$3
@@ -36,9 +37,9 @@ echo "START..."
 ./gradlew docker
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; docker service rm jgroups-coordinator; exit' TERM INT
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; kill ${churn_pid}; exit' TERM INT
 
-docker swarm init && docker network create -d overlay --subnet=172.110.0.0/16 jgroups_network
+docker swarm init && docker network create -d overlay --subnet=172.121.0.0/16 jgroups_network
 
 docker service create --name jgroups-tracker --network jgroups_network --replicas 1 \
 --constraint 'node.role == manager' --limit-memory 250m jgroups-tracker:latest
@@ -48,45 +49,36 @@ do
 done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-docker service create --name jgroups-coordinator --network jgroups_network --replicas 1 \
---constraint 'node.role == manager' \
+docker service create --name jgroups-service --network jgroups_network --replicas 0 \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
 --limit-memory 250m --log-driver=journald --restart-condition=none \
---mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
-
-while docker service ls | grep " 0/1"
-do
-    sleep 1s
-done
-
-docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
---env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
---limit-memory 250m --log-driver=journald --restart-condition=none \
---mount type=bind,source=/home/jocelyn/tmp/data,target=/data jgroups:latest
-
-
-while docker service ls | grep " 0/$PEER_NUMBER"
-do
-    sleep 1s
-done
+--mount type=bind,source=${LOG_STORAGE},target=/data jgroups:latest
 echo "Running JGroups tester..."
-NB=0
-if [ -n "$CHURN" ]
-  then
-    NB=${CHURN}
-    sleep 20s
-    echo "Running synthetic churn"
-    ./cluster/synthetic-churn.py -a --local --kill-coordinator $(($CHURN / 2)) -p ${CHURN} 5 &
-fi
-# wait for service to end
-echo " $(($NB - 1))/$((PEER_NUMBER + NB))"
-until docker service ls | grep -q " $(($NB - 1))/$((PEER_NUMBER + NB))"
-do
-    sleep 5s
-done
 
+# TODO find a nice way to pass synthetic or not
+if [ -n "$CHURN" ]
+then
+    echo "Running churn"
+    ./cluster/churn.py -v --local --delay 80 --kill-coordinator ${CHURN} 5 \
+    --synthetic 0,${PEER_NUMBER} 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 &
+    churn_pid=$!
+
+    # wait for service to end
+    until docker service ls | grep -q " 10/$(($PEER_NUMBER + 0))"
+    do
+        sleep 5s
+    done
+else
+    echo "Running without churn"
+    # wait for service to end
+    until docker service ls | grep -q " 0/$PEER_NUMBER"
+    do
+        sleep 5s
+    done
+fi
+
+kill ${churn_pid}
 docker service rm jgroups-tracker
-docker service rm jgroups-coordinator
 docker service rm jgroups-service
 
 echo "Services removed"

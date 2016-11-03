@@ -2,6 +2,7 @@
 # This scripts runs the benchmarks on a remote cluster
 
 MANAGER_IP=172.16.2.119
+LOG_STORAGE=/home/debian/data
 PEER_NUMBER=$1
 TIME_ADD=$2
 EVENTS_TO_SEND=$3
@@ -77,7 +78,7 @@ do
     docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
     --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
     --limit-memory 300m --restart-condition=none \
-    --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
+    --mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
 
     # wait for service to start
     while docker service ls | grep " 0/$PEER_NUMBER"

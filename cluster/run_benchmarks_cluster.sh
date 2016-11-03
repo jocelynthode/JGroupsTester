@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # This scripts runs the benchmarks on a remote cluster
 MANAGER_IP=172.16.2.119
+LOG_STORAGE=/home/debian/data
 PEER_NUMBER=$1
 TIME_ADD=$2
 EVENTS_TO_SEND=$3
@@ -40,7 +41,7 @@ function getlogs {
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service; docker service rm jgroups-tracker;docker service rm jgroups-coordinator; \
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; \
 sleep 15s; getlogs; exit' TERM INT
 
 docker pull swarm-m:5000/jgroups:latest
@@ -59,46 +60,37 @@ do
 done
 
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-docker service create --name jgroups-coordinator --network jgroups_network --replicas 1 \
---constraint 'node.role == manager' \
+docker service create --name jgroups-service --network jgroups_network --replicas 0 \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
 --limit-memory 300m --restart-condition=none \
---mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
+--mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
 
-while docker service ls | grep " 0/1"
-do
-    sleep 1s
-done
-docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
---env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
---limit-memory 300m --restart-condition=none \
---mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
-
-# wait for service to start
-while docker service ls | grep " 0/$PEER_NUMBER"
-do
-    sleep 1s
-done
 echo "Running JGroups tester..."
 
 NB=0
+# TODO find a nice way to pass synthetic or not
 if [ -n "$CHURN" ]
-  then
-    NB=${CHURN}
-    sleep 20s
-    echo "Running synthetic churn"
-    ./synthetic-churn.py -a --kill-coordinator $(($CHURN / 2)) -p ${CHURN} 60 &
+then
+    echo "Running churn"
+    ./churn.py --kill-coordinator ${CHURN} 60 \
+    --synthetic 0,${PEER_NUMBER} 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 &
+
+    # wait for service to end
+    until docker service ls | grep -q " 10/$(($PEER_NUMBER + 0))"
+    do
+        sleep 5s
+    done
+else
+    # wait for service to end
+    until docker service ls | grep -q " $(($NB - 1))/$((PEER_NUMBER + NB))"
+    do
+        sleep 5s
+    done
 fi
-# wait for service to end
-until docker service ls | grep -q " ${NB}/$PEER_NUMBER"
-do
-    sleep 5s
-done
 
 docker service rm jgroups-tracker
-docker service rm jgroups-coordinator
 docker service rm jgroups-service
 
 echo "Services removed"
-sleep 1m
+sleep 30s
 getlogs
