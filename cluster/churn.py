@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 import argparse
+import glob
 import logging
 import random
+import re
 import subprocess
 import time
 
 from nodes_trace import NodesTrace
 
+
+LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
 
 def churn_tuple(s):
     try:
@@ -16,6 +20,19 @@ def churn_tuple(s):
         raise TypeError("Tuples must be (int, int)")
 
 
+def get_peer_list(path='../data/*.txt'):
+    with open(glob.glob(path)[0], 'r') as f:
+        a_list = []
+        for line in f.readlines():
+            match = re.match(r'\d+ - View: (.+)', line)
+            if match:
+                a_list = match.group(1).split(',')
+                break
+        if not a_list:
+            raise LookupError('No view found in file {}'.format(f.name))
+        return a_list
+
+
 class Churn:
     """
     Author: Jocelyn Thode
@@ -23,6 +40,8 @@ class Churn:
     A class in charge of adding/suspending nodes to create churn in a JGroups SEQUENCER cluster
     """
     containers = {}
+    coordinator = None
+    peer_list = []
     periods = 0
 
     def __init__(self, hosts_filename=None, kill_coordinator_round=-1):
@@ -43,12 +62,11 @@ class Churn:
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
             if self.periods == self.kill_coordinator_round:
-                container = subprocess.check_output(["docker", "ps", "-aqf", "name=jgroups-coordinator",
-                                                     "-f", "status=running"],
-                                                    universal_newlines=True).splitlines()
-                command_suspend += container
+                command_suspend += [self.coordinator]
+                logging.debug(command_suspend)
                 subprocess.call(command_suspend)
                 logging.info("Coordinator on host localhost was suspended")
+                self.coordinator = self.peer_list.pop(0)
                 return
 
             choice = random.choice(self.hosts)
@@ -65,6 +83,9 @@ class Churn:
 
             try:
                 container = random.choice(self.containers[choice])
+                logging.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
+                while container == self.coordinator:
+                    container = random.choice(self.containers[choice])
                 self.containers[choice].remove(container)
             except ValueError or IndexError:
                 logging.error("No container available")
@@ -84,14 +105,13 @@ class Churn:
         subprocess.call(["docker", "service", "scale",
                          "jgroups-service={:d}".format(self.cluster_size)])
 
-    def add_suspend_processes(self, to_create_nb, to_suspend_nb):
+    def add_suspend_processes(self, to_suspend_nb, to_create_nb):
         self.suspend_processes(to_suspend_nb)
         self.add_processes(to_create_nb)
         self.periods += 1
 
-if __name__ == '__main__':
-    logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=logging.INFO)
 
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a synthetic churn',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('delta', type=int, default=60,
@@ -104,8 +124,16 @@ if __name__ == '__main__':
                         help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
     parser.add_argument('--delay', '-d', type=int, default=180,
                         help='After how much time should the churn start')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Switch DEBUG logging on')
     args = parser.parse_args()
 
+    if args.verbose:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
+
+    logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=log_level)
     if args.synthetic:
         logging.info(args.synthetic)
         nodes_trace = NodesTrace(synthetic=args.synthetic)
@@ -113,7 +141,7 @@ if __name__ == '__main__':
         nodes_trace = NodesTrace(database='database.db')
 
     if args.local:
-        hosts_fname = args.local
+        hosts_fname = None
     else:
         hosts_fname = 'hosts'
 
@@ -121,12 +149,20 @@ if __name__ == '__main__':
     churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator)
 
     # Add initial cluster
+    logging.debug('Initial size: {}'.format(nodes_trace.initial_size()))
     churn.add_processes(nodes_trace.initial_size())
     nodes_trace.next()
 
     logging.info("Sleeping for {:d} seconds".format(args.delay))
     time.sleep(args.delay)
     logging.info("Starting churn")
+    if args.local:
+        churn.peer_list = get_peer_list(LOCAL_DATA_FILES)
+    else:
+        churn.peer_list = get_peer_list()
+
+    logging.debug(churn.peer_list)
+    churn.coordinator = churn.peer_list.pop(0)
 
     for _, to_kill, to_create in nodes_trace:
         logging.debug("curr_size: {:d}, to_kill: {:d}, to_create {:d}".format(_, len(to_kill), len(to_create)))
