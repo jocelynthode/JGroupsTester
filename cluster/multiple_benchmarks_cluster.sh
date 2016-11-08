@@ -43,7 +43,7 @@ function getlogs {
 echo "START..."
 
 # Clean everything at Ctrl+C
-trap 'docker service rm jgroups-service; docker service rm jgroups-tracker;docker service rm jgroups-coordinator; \
+trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; \
 sleep 15s; getlogs; exit' TERM INT
 
 docker pull swarm-m:5000/jgroups:latest
@@ -52,7 +52,7 @@ docker pull swarm-m:5000/jgroups-tracker:latest
 docker swarm init && \
 (TOKEN=$(docker swarm join-token -q worker) && \
 parallel-ssh -t 0 -h hosts "docker swarm join --token ${TOKEN} ${MANAGER_IP}:2377" && \
-docker network create -d overlay --subnet=172.103.0.0/16 jgroups_network || exit)
+docker network create -d overlay --subnet=172.111.0.0/16 jgroups_network || exit)
 
 
 for i in {1..10}
@@ -65,17 +65,7 @@ do
     done
 
     TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-    docker service create --name jgroups-coordinator --network jgroups_network --replicas 1 \
-    --constraint 'node.role == manager' \
-    --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
-    --limit-memory 300m --restart-condition=none \
-    --mount type=bind,source=/home/debian/data,target=/data swarm-m:5000/jgroups:latest
-
-    while docker service ls | grep " 0/1"
-    do
-        sleep 1s
-    done
-    docker service create --name jgroups-service --network jgroups_network --replicas $(($PEER_NUMBER - 1)) \
+    docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
     --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
     --limit-memory 300m --restart-condition=none \
     --mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
@@ -86,14 +76,7 @@ do
         sleep 1s
     done
     echo "Running JGroups tester -> Experiment: $i"
-    NB=0
-    if [ -n "$CHURN" ]
-      then
-        NB=${CHURN}
-        sleep 20s
-        echo "Running synthetic churn"
-        ./synthetic-churn.py -a --kill-coordinator $(($CHURN / 2)) -p ${CHURN} 60 &
-    fi
+
     # wait for service to end
     until docker service ls | grep -q " 0/$PEER_NUMBER"
     do
@@ -101,7 +84,6 @@ do
     done
 
     docker service rm jgroups-tracker
-    docker service rm jgroups-coordinator
     docker service rm jgroups-service
 
     echo "Services removed"

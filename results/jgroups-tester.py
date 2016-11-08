@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.5
 import re
-from pathlib import Path
 from collections import namedtuple
 import statistics
 import argparse
@@ -8,12 +7,13 @@ import argparse
 Stats = namedtuple('Stats', ['start_at', 'end_at', 'duration', 'msg_sent', 'msg_received'])
 
 parser = argparse.ArgumentParser(description='Process JGroups logs')
-parser.add_argument('peer_number', metavar='PEER_NUMBER', type=int,
-                    help='the number of peer for an experiment')
 parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse')
+parser.add_argument('-e', '--experiments-nb',  metavar='EXPERIMENT_NB', type=int, default=1,
+                    help='How many experiments were run')
 args = parser.parse_args()
-PEER_NUMBER = args.peer_number
+experiments_nb = args.experiments_nb
+PEER_NUMBER = len(args.files) // experiments_nb
 
 
 # We must create our own iter because iter disables the tell function
@@ -76,8 +76,6 @@ def global_time(experiment_nb, stats):
 
 
 stats = list(all_stats())
-experiments_nb = len(stats) // PEER_NUMBER
-
 global_times = list(global_time(experiments_nb, stats))
 durations = [stat.duration for stat in stats]
 mininum = min(durations)
@@ -90,6 +88,7 @@ print("------------------------")
 print("Least time to deliver in total : %d ms" % mininum)
 print("Most time to deliver in total : %d ms" % maximum)
 print("Average time to deliver per peer in total: %d ms" % average)
+print("Average global time to deliver on all peers per experiment: %d ms" % global_average)
 
 messages_sent = [stat.msg_sent for stat in stats]
 messages_received = [stat.msg_received for stat in stats]
@@ -97,8 +96,9 @@ messages_received = [stat.msg_received for stat in stats]
 sent_sum = sum(messages_sent)
 received_sum = sum(messages_received)
 print("Total events sent: %d" % sent_sum)
-print("Total events received on a single peer: %d" % messages_received[0])
-print("Total events received across all peers: %d" % received_sum)
+print("Total events received on average: %f" % (received_sum / PEER_NUMBER))
+print("-------------------------------------------")
+
 
 def all_delivered(experiment_nb, stats):
     for i in range(experiment_nb):
@@ -106,19 +106,19 @@ def all_delivered(experiment_nb, stats):
         end_index = start_index + PEER_NUMBER
         tmp = stats[start_index:end_index]
         total_received = tmp[0].msg_received
+        sent_sum = sum([stat.msg_sent for stat in tmp])
         yield (sent_sum == total_received)
 
 all_delivered = list(all_delivered(experiments_nb, stats))
+
+
 def check_list_all_identical(lst):
     return not lst or [lst[0]]*len(lst) == lst
 
 if check_list_all_identical(all_delivered):
     print("All events sent were delivered in every experiments")
 else:
-    for idx,result in enumerate(all_delivered):
+    for idx, result in enumerate(all_delivered):
         if not result:
-            print("Experiement %d didn't deliver every event sent")
+            print("Experiment %d didn't deliver every event sent")
 
-
-print("------------")
-print("Average global time to deliver on all peers per experiment: %d ms" % global_average)

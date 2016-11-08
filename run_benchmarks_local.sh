@@ -42,7 +42,7 @@ trap 'docker service rm jgroups-service; docker service rm jgroups-tracker; kill
 docker swarm init && docker network create -d overlay --subnet=172.121.0.0/16 jgroups_network
 
 docker service create --name jgroups-tracker --network jgroups_network --replicas 1 \
---constraint 'node.role == manager' --limit-memory 250m jgroups-tracker:latest
+--constraint 'node.role == manager' --limit-memory 300m jgroups-tracker:latest
 until docker service ls | grep "1/1"
 do
     sleep 1s
@@ -51,7 +51,7 @@ done
 TIME=$(( $(date +%s%3N) + $TIME_ADD ))
 docker service create --name jgroups-service --network jgroups_network --replicas 0 \
 --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
---limit-memory 250m --log-driver=journald --restart-condition=none \
+--limit-memory 300m --restart-condition=none \
 --mount type=bind,source=${LOG_STORAGE},target=/data jgroups:latest
 echo "Running JGroups tester..."
 

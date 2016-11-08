@@ -69,8 +69,8 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
             logger.warn("Time given was smaller than current time, running JGroups immediately, but some events might get lost")
             return 0
         } else {
-            logger.warn("JGroups will start at {} UTC+2",
-                    LocalDateTime.ofEpochSecond((date / 1000), 0, ZoneOffset.ofHours(2)))
+            logger.warn("JGroups will start at {} UTC",
+                    LocalDateTime.ofEpochSecond((date / 1000), 0, ZoneOffset.ofHours(0)))
             return (date - System.currentTimeMillis())
         }
     }
