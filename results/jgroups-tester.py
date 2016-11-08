@@ -84,12 +84,12 @@ average = statistics.mean(durations)
 global_average = statistics.mean(global_times)
 
 print("JGroups run with %d peers across %d experiments" % (PEER_NUMBER, experiments_nb))
-print("------------------------")
+print("-------------------------------------------")
 print("Least time to deliver in total : %d ms" % mininum)
 print("Most time to deliver in total : %d ms" % maximum)
 print("Average time to deliver per peer in total: %d ms" % average)
 print("Average global time to deliver on all peers per experiment: %d ms" % global_average)
-
+print("-------------------------------------------")
 messages_sent = [stat.msg_sent for stat in stats]
 messages_received = [stat.msg_received for stat in stats]
 

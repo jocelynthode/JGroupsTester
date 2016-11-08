@@ -45,7 +45,7 @@ class Churn:
     peer_list = []
     periods = 0
 
-    def __init__(self, hosts_filename=None, kill_coordinator_round=-1):
+    def __init__(self, hosts_filename=None, kill_coordinator_round=''):
         self.hosts = ['localhost']
         if hosts_filename is not None:
             with open(hosts_filename, 'r') as file:
@@ -60,7 +60,7 @@ class Churn:
             return
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
-            if self.periods == self.kill_coordinator_round:
+            if self.periods in self.kill_coordinator_round:
                 command_suspend += [self.coordinator]
                 logging.debug(command_suspend)
                 subprocess.call(command_suspend)
@@ -117,8 +117,8 @@ if __name__ == '__main__':
                         help='The interval between killing/adding new containers in s')
     parser.add_argument('--local', '-l', action='store_true',
                         help='Run the synthetic churn only on local node')
-    parser.add_argument('--kill-coordinator', '-k', type=int, default=-1,
-                        help='Kill the coordinator at the specified period')
+    parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+',
+                        help='Kill the coordinator at the specified periods')
     parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
                         help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
     parser.add_argument('--delay', '-d', type=int, default=180,

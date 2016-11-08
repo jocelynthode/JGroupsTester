@@ -70,7 +70,7 @@ echo "Running JGroups tester..."
 if [ -n "$CHURN" ]
 then
     echo "Running churn"
-    ./cluster/churn.py -v --delay 160 --kill-coordinator ${CHURN} 5 \
+    ./churn.py 60 -v --delay 160 --kill-coordinator ${CHURN} \
     --synthetic 0,${PEER_NUMBER} 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 &
     churn_pid=$!
 
