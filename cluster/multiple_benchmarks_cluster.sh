@@ -70,24 +70,33 @@ do
     --limit-memory 300m --restart-condition=none \
     --mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
 
-    # wait for service to start
-    while docker service ls | grep " 0/$PEER_NUMBER"
-    do
-        sleep 1s
-    done
-    echo "Running JGroups tester -> Experiment: $i"
+    if [ -n "$CHURN" ]
+    then
+        echo "Running churn"
+        ./cluster/churn.py -v --delay 160 --kill-coordinator ${CHURN} 5 \
+        --synthetic 0,${PEER_NUMBER} 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 &
+        churn_pid=$!
 
-    # wait for service to end
-    until docker service ls | grep -q " 0/$PEER_NUMBER"
-    do
-        sleep 5s
-    done
+        # wait for service to end
+        until docker service ls | grep -q " 10/$(($PEER_NUMBER + 0))"
+        do
+            sleep 5s
+        done
+    else
+        echo "Running without churn"
+        # wait for service to end
+        until docker service ls | grep -q " 0/$PEER_NUMBER"
+        do
+            sleep 5s
+        done
+    fi
+    echo "Running JGroups tester -> Experiment: $i"
 
     docker service rm jgroups-tracker
     docker service rm jgroups-service
 
     echo "Services removed"
-    sleep 1m
+    sleep 30s
 
     parallel-ssh -t 0 -h hosts "mkdir -p data/test-$i/capture &&  mv data/*.txt data/test-$i \
     && mv data/capture/*.csv data/test-$i/capture"

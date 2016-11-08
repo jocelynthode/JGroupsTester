@@ -12,6 +12,7 @@ from nodes_trace import NodesTrace
 
 LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
 
+
 def churn_tuple(s):
     try:
         _to_kill, _to_create = map(int, s.split(','))
@@ -45,12 +46,10 @@ class Churn:
     periods = 0
 
     def __init__(self, hosts_filename=None, kill_coordinator_round=-1):
+        self.hosts = ['localhost']
         if hosts_filename is not None:
-            self.hosts = ['localhost']
             with open(hosts_filename, 'r') as file:
                 self.hosts += list(line.rstrip() for line in file)
-        else:
-            self.hosts = ['localhost']
         self.kill_coordinator_round = kill_coordinator_round
         self.cluster_size = 0
 

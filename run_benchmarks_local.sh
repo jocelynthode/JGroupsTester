@@ -55,20 +55,25 @@ docker service create --name jgroups-service --network jgroups_network --replica
 --mount type=bind,source=${LOG_STORAGE},target=/data jgroups:latest
 echo "Running JGroups tester..."
 
-# TODO find a nice way to pass synthetic or not
 if [ -n "$CHURN" ]
 then
     echo "Running churn"
-    ./cluster/churn.py -v --local --delay 80 --kill-coordinator ${CHURN} 5 \
-    --synthetic 0,${PEER_NUMBER} 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 1,0 &
+    ./cluster/churn.py -v --local --delay 70 --kill-coordinator ${CHURN} 5 \
+    --synthetic 0,${PEER_NUMBER} 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 &
     churn_pid=$!
 
+    sleep 3m
     # wait for service to end
-    until docker service ls | grep -q " 10/$(($PEER_NUMBER + 0))"
+    until docker service ls | grep -q " 10/$(($PEER_NUMBER + 10))"
     do
         sleep 5s
     done
 else
+    docker service scale jgroups-service=${PEER_NUMBER}
+    while docker service ls | grep -q " 0/$PEER_NUMBER"
+    do
+        sleep 5s
+    done
     echo "Running without churn"
     # wait for service to end
     until docker service ls | grep -q " 0/$PEER_NUMBER"
