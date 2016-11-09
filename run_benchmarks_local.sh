@@ -58,13 +58,15 @@ echo "Running JGroups tester..."
 if [ -n "$CHURN" ]
 then
     echo "Running churn"
-    ./cluster/churn.py 5 -v --local --delay 70 --kill-coordinator ${CHURN} \
+    ./cluster/churn.py 5 -v --local --delay $(($TIME + 10000)) --kill-coordinator 5 \
     --synthetic 0,${PEER_NUMBER} 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 1,1 &
-    churn_pid=$!
+    export churn_pid=$!
 
+    # wait for service to be bigger than the limit below
     sleep 3m
+
     # wait for service to end
-    until docker service ls | grep -q " 10/$(($PEER_NUMBER + 10))"
+    until docker service ls | grep -q " 20/$(($PEER_NUMBER + 10))"
     do
         sleep 5s
     done

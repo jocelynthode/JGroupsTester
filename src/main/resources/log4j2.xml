@@ -9,7 +9,7 @@
         </Console>
     </Appenders>
     <Loggers>
-        <Logger name="EventTester" level="info"/>
+        <Logger name="EventTester" level="debug"/>
         <Logger name="org.jgroups.stack.GossipRouter" level="info"/>
         <Root level="info">
             <AppenderRef ref="File"/>
