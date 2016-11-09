@@ -65,7 +65,7 @@ do
     done
 
     TIME=$(( $(date +%s%3N) + $TIME_ADD ))
-    docker service create --name jgroups-service --network jgroups_network --replicas ${PEER_NUMBER} \
+    docker service create --name jgroups-service --network jgroups_network --replicas 0 \
     --env "PEER_NUMBER=${PEER_NUMBER}" --env "TIME=$TIME" --env "EVENTS_TO_SEND=${EVENTS_TO_SEND}" --env "RATE=$RATE" \
     --limit-memory 300m --restart-condition=none \
     --mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
@@ -88,6 +88,11 @@ do
             sleep 5s
         done
     else
+        docker service scale jgroups-service=${PEER_NUMBER}
+        while docker service ls | grep -q " 0/$PEER_NUMBER"
+        do
+            sleep 5s
+        done
         echo "Running without churn"
         # wait for service to end
         until docker service ls | grep -q " 0/$PEER_NUMBER"

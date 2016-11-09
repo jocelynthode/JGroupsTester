@@ -83,6 +83,11 @@ then
         sleep 5s
     done
 else
+    docker service scale jgroups-service=${PEER_NUMBER}
+    while docker service ls | grep -q " 0/$PEER_NUMBER"
+    do
+        sleep 5s
+    done
     echo "Running without churn"
     # wait for service to end
     until docker service ls | grep -q " 0/$PEER_NUMBER"
