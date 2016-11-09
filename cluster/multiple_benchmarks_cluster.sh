@@ -70,6 +70,8 @@ do
     --limit-memory 300m --restart-condition=none \
     --mount type=bind,source=${LOG_STORAGE},target=/data swarm-m:5000/jgroups:latest
 
+    echo "Running JGroups tester -> Experiment: $i"
+
     if [ -n "$CHURN" ]
     then
         echo "Running churn"
@@ -93,7 +95,6 @@ do
             sleep 5s
         done
     fi
-    echo "Running JGroups tester -> Experiment: $i"
 
     docker service rm jgroups-tracker
     docker service rm jgroups-service
