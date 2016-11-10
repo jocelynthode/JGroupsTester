@@ -1,17 +1,9 @@
 #!/usr/bin/env python3
-import argparse
 import glob
 import logging
 import random
 import re
 import subprocess
-import time
-
-from datetime import datetime
-from nodes_trace import NodesTrace
-
-
-LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
 
 
 def churn_tuple(s):
@@ -109,73 +101,3 @@ class Churn:
         self.suspend_processes(to_suspend_nb)
         self.add_processes(to_create_nb)
         self.periods += 1
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Create a synthetic churn',
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('delta', type=int, default=60,
-                        help='The interval between killing/adding new containers in s')
-    parser.add_argument('--local', '-l', action='store_true',
-                        help='Run the synthetic churn only on local node')
-    parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+',
-                        help='Kill the coordinator at the specified periods')
-    parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
-                        help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
-    parser.add_argument('--delay', '-d', type=int,
-                        help='At which time should the churn start (UTC)')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Switch DEBUG logging on')
-    args = parser.parse_args()
-
-    if args.verbose:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
-
-    logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=log_level)
-    if args.synthetic:
-        logging.info(args.synthetic)
-        nodes_trace = NodesTrace(synthetic=args.synthetic)
-    else:
-        nodes_trace = NodesTrace(database='database.db')
-
-    if args.local:
-        hosts_fname = None
-    else:
-        hosts_fname = 'hosts'
-
-    delta = args.delta
-    churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator)
-
-    # Add initial cluster
-    logging.debug('Initial size: {}'.format(nodes_trace.initial_size()))
-    churn.add_processes(nodes_trace.initial_size())
-    nodes_trace.next()
-
-    if args.delay:
-        delay = (datetime.utcfromtimestamp(args.delay // 1000) - datetime.utcnow()).seconds
-        if delay < 0:
-            delay = 0
-    else:
-        delay = 0
-
-    logging.info("Starting churn at {:s} UTC"
-                 .format(datetime.utcfromtimestamp(args.delay // 1000).isoformat()))
-    time.sleep(delay)
-    logging.info("Starting churn")
-    if args.local:
-        churn.peer_list = get_peer_list(LOCAL_DATA_FILES)
-    else:
-        churn.peer_list = get_peer_list()
-
-    logging.debug(churn.peer_list)
-    churn.coordinator = churn.peer_list.pop(0)
-
-    for _, to_kill, to_create in nodes_trace:
-        logging.debug("curr_size: {:d}, to_kill: {:d}, to_create {:d}"
-                      .format(_, len(to_kill), len(to_create)))
-        churn.add_suspend_processes(len(to_kill), len(to_create))
-        time.sleep(delta)
-
-    logging.info("Churn finished")
