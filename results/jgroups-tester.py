@@ -93,20 +93,21 @@ print("-------------------------------------------")
 messages_sent = [stat.msg_sent for stat in stats]
 messages_received = [stat.msg_received for stat in stats]
 
-sent_sum = sum(messages_sent)
-received_sum = sum(messages_received)
 all_delivered = []
 for i in range(experiments_nb):
     start_index = i * PEER_NUMBER
     end_index = start_index + PEER_NUMBER
     events_sent = sum(messages_sent[start_index:end_index])
     events_received = sum(messages_received[start_index:end_index]) / PEER_NUMBER
+
     print("Experiment %d:" % (i+1))
     print("Total events sent: %d" % events_sent)
     print("Total events received on average: %f" % events_received)
-    print("--------")
+    print("Ratio events received/sent: {:.10g}".format(events_received / events_sent))
+    print("-------------------------------------------")
     all_delivered.append(events_sent == events_received)
 print("-------------------------------------------")
+
 
 def check_list_all_identical(lst):
     return not lst or [lst[0]]*len(lst) == lst
