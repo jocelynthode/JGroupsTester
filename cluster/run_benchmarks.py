@@ -2,10 +2,12 @@
 import argparse
 import docker
 import logging
+import re
 import signal
 import subprocess
 import threading
 import time
+import yaml
 
 from churn import Churn
 from churn import churn_tuple
@@ -14,6 +16,7 @@ from datetime import datetime
 from docker import errors
 from docker import types
 from docker import utils
+from logging import config
 from nodes_trace import NodesTrace
 
 
@@ -24,22 +27,25 @@ LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
 REPOSITORY = 'swarm-m:5000/'
 SERVICE_NAME = 'jgroups'
 TRACKER_NAME = 'jgroups-tracker'
+NETWORK_NAME = 'jgroups_network'
 
 
 def create_service(service_name, image, env=None, mounts=None, placement=None, replicas=1):
     container_spec = types.ContainerSpec(image=image, env=env, mounts=mounts)
-    logging.debug(container_spec)
+    logger.debug(container_spec)
     task_tmpl = types.TaskTemplate(container_spec,
                                    resources=types.Resources(mem_limit=314572800),
                                    restart_policy=types.RestartPolicy(),
                                    placement=placement)
-    logging.debug(task_tmpl)
-    cli.create_service(task_tmpl, name=service_name, mode={'Replicated': {'Replicas': replicas}})
+    logger.debug(task_tmpl)
+    cli.create_service(task_tmpl, name=service_name, mode={'Replicated': {'Replicas': replicas}},
+                       networks=[{'Target': NETWORK_NAME}])
 
 
-def run_churn():
+def run_churn(time_to_start):
+    logger.debug('Time to start churn: %d' % time_to_start)
     if args.synthetic:
-        logging.info(args.synthetic)
+        logger.info(args.synthetic)
         nodes_trace = NodesTrace(synthetic=args.synthetic)
     else:
         nodes_trace = NodesTrace(database='database.db')
@@ -50,40 +56,49 @@ def run_churn():
         hosts_fname = 'hosts'
 
     delta = args.delta
-    churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator)
+    churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME)
+    churn.set_logger_level(log_level)
 
     # Add initial cluster
-    logging.debug('Initial size: {}'.format(nodes_trace.initial_size()))
+    logger.debug('Initial size: {}'.format(nodes_trace.initial_size()))
     churn.add_processes(nodes_trace.initial_size())
     nodes_trace.next()
-
-    if args.delay:
-        delay = (datetime.utcfromtimestamp(args.delay // 1000) - datetime.utcnow()).seconds
-        if delay < 0:
-            delay = 0
-    else:
-        delay = 0
-
-    logging.info("Starting churn at {:s} UTC"
-                 .format(datetime.utcfromtimestamp(args.delay // 1000).isoformat()))
+    delay = (time_to_start - (time.time() * 1000)) // 1000
+    logger.debug('Delay: %d' % delay)
+    logger.info('Starting churn at {:s} UTC'
+                .format(datetime.utcfromtimestamp(time_to_start // 1000).isoformat()))
     time.sleep(delay)
-    logging.info("Starting churn")
+    logger.info('Starting churn')
     if args.local:
         churn.peer_list = get_peer_list(LOCAL_DATA_FILES)
     else:
         churn.peer_list = get_peer_list()
 
-    logging.debug(churn.peer_list)
+    logger.debug(churn.peer_list)
     churn.coordinator = churn.peer_list.pop(0)
 
     for _, to_kill, to_create in nodes_trace:
-        logging.debug("curr_size: {:d}, to_kill: {:d}, to_create {:d}"
-                      .format(_, len(to_kill), len(to_create)))
+        logger.debug('curr_size: {:d}, to_kill: {:d}, to_create {:d}'
+                     .format(_, len(to_kill), len(to_create)))
         churn.add_suspend_processes(len(to_kill), len(to_create))
         time.sleep(delta)
 
-    logging.info("Churn finished")
+    logger.info('Churn finished')
 
+
+def wait_on_service(service_name, containers_nb):
+    current_nb = -11
+    while current_nb != containers_nb:
+        time.sleep(5)
+        output = subprocess.check_output(['docker', 'service', 'ls', '-f', 'name=%s' % service_name],
+                                         universal_newlines=True).splitlines()[1]
+        current_nb = int(re.match(r'.+(\d+)/\d+', output).group(1))
+
+
+def create_logger():
+    with open('logger.yaml') as f:
+        conf = yaml.load(f)
+        logging.config.dictConfig(conf)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run benchmarks',
@@ -99,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--runs', type=int, default=1, help='How many experiments should be ran')
     parser.add_argument('--verbose', '-v', action='store_true', help='Switch DEBUG logging on')
 
-    subparsers = parser.add_subparsers(help='Specify churn and its arguments')
+    subparsers = parser.add_subparsers(dest='churn', help='Specify churn and its arguments')
 
     churn_parser = subparsers.add_parser('churn', help='Activate churn')
     churn_parser.add_argument('delta', type=int, default=60,
@@ -108,22 +123,24 @@ if __name__ == '__main__':
                               help='Kill the coordinator at the specified periods')
     churn_parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
                               help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
-    churn_parser.add_argument('--delay', '-d', type=int,
-                              help='At which time should the churn start (UTC)')
+    churn_parser.add_argument('--delay', '-d', type=int, default=0,
+                              help='With how much delay compared to the tester should the tester start in ms')
 
     args = parser.parse_args()
-
     if not args.fixed_rate:
         args.fixed_rate = args.peer_number
     if args.verbose:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
-    logging.basicConfig(format='%(levelname)s: %(asctime)s - %(message)s', level=log_level)
-    logging.info("START")
+    create_logger()
+    logger = logging.getLogger('benchmarks')
+    logger.setLevel(log_level)
+
+    logger.info('START')
 
     def signal_handler(signal, frame):
-        print('Stopping Benchmarks')
+        logger.info('Stopping Benchmarks')
         try:
             cli.remove_service(SERVICE_NAME)
             cli.remove_service(TRACKER_NAME)
@@ -134,7 +151,7 @@ if __name__ == '__main__':
                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                       universal_newlines=True) as p:
                     for line in p.stdout:
-                        print(line)
+                        print(line, end='')
 
         except errors.NotFound:
             pass
@@ -144,62 +161,64 @@ if __name__ == '__main__':
     if args.local:
         service_image = SERVICE_NAME
         tracker_image = TRACKER_NAME
-        with subprocess.Popen(['cd', '../;', './gradlew', 'docker'],
+        with subprocess.Popen(['../gradlew', '-p', '..', 'docker'],
                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                               universal_newlines=True) as p:
             for line in p.stdout:
-                print(line)
+                print(line, end='')
     else:
         service_image = REPOSITORY + SERVICE_NAME
         tracker_image = REPOSITORY + TRACKER_NAME
-
-    exit(0)
-
-    if not args.local:
         for line in cli.pull(service_image, stream=True):
-            print(line)
+            print(line, end='')
         for line in cli.pull(tracker_image, stream=True):
-            print(line)
-    else:
-        pass
-        # TODO build image
+            print(line, end='')
 
     try:
         cli.init_swarm()
         if not args.local:
-            # TODO find TOKEN
-            token = 0
+            token = cli.inspect_swarm()['JoinTokens']['Worker']
             subprocess.call(['parallel-ssh', '-t', '0', '-h', 'hosts',
                             '"docker swarm join --token {:s} {:s}:2377"'.format(token, MANAGER_IP)])
         ipam_pool = utils.create_ipam_pool(subnet='172.111.0.0/16')
         ipam_config = utils.create_ipam_config(pool_configs=[ipam_pool])
-        cli.create_network('jgroups_network', 'overlay', ipam=ipam_config)
+        cli.create_network(NETWORK_NAME, 'overlay', ipam=ipam_config)
     except errors.APIError:
-        logging.info('Host is already part of a swarm')
+        logger.info('Host is already part of a swarm')
+        if not cli.networks(names=[NETWORK_NAME]):
+            logger.error('Network  doesn\'t exist!')
+            exit(1)
 
     for run_nb, _ in enumerate(range(args.runs), 1):
         create_service(TRACKER_NAME, tracker_image, placement={'Constraints': ['node.role == manager']})
-        # TODO wait for jgroups-tracker to be started
-        time.sleep(10)
-        environment_vars = {'PEER_NUMBER': args.peer_number, 'TIME': args.time_add,
+        wait_on_service(TRACKER_NAME, 1)
+        time_to_start = (time.time() * 1000) + args.time_add
+        logger.debug(datetime.utcfromtimestamp(time_to_start / 1000).isoformat())
+        environment_vars = {'PEER_NUMBER': args.peer_number, 'TIME': time_to_start,
                             'EVENTS_TO_SEND': args.events_to_send, 'RATE': args.rate,
                             'FIXED_RATE': args.fixed_rate}
         environment_vars = ['%s=%d' % (k, v) for k, v in environment_vars.items()]
-        logging.debug(environment_vars)
+        logger.debug(environment_vars)
 
-        service_replicas = 0 if hasattr(args, 'churn') else args.peer_number
+        service_replicas = 0 if args.churn else args.peer_number
         create_service(SERVICE_NAME, service_image, env=environment_vars,
-                       mounts=[types.Mount(target='/data', source=LOG_STORAGE)])
-        logging.info('Running EpTO tester -> Experiment: %d' % run_nb)
-        if hasattr(args, 'churn'):
-            threading.Thread(target=run_churn, daemon=True).start()
+                       mounts=[types.Mount(target='/data', source=LOG_STORAGE, type='bind')], replicas=service_replicas)
 
-        # TODO wait for JGroups benchmarks to be done
+        logger.info('Running EpTO tester -> Experiment: %d/%d' % (run_nb, args.runs))
+        #wait_on_service(SERVICE_NAME, 1)
+        if args.churn:
+            logger.info('Running with churn')
+            threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
+            # TODO find a way to stop at the right moment
+            wait_on_service(SERVICE_NAME, 10)
+        else:
+            logger.info('Running without churn')
+            wait_on_service(SERVICE_NAME, 0)
 
-        cli.remove_service('jgroups-service')
-        cli.remove_service('jgroups-tracker')
+        cli.remove_service(SERVICE_NAME)
+        cli.remove_service(TRACKER_NAME)
 
-        logging.info("Services removed")
+        logger.info('Services removed')
         time.sleep(30)
 
         if not args.local:
@@ -211,5 +230,5 @@ if __name__ == '__main__':
             subprocess.call(['mv', '~/data/*.txt', '~/data/test-{:d}'.format(run_nb)])
             subprocess.call(['mv', '~/data/capture/*.csv', '~/data/test-{:d}/capture'.format(run_nb)])
 
-    logging.info("Benchmark done!")
+    logger.info('Benchmark done!')
 

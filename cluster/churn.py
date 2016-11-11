@@ -37,8 +37,11 @@ class Churn:
     coordinator = None
     peer_list = []
     periods = 0
+    logger = logging.getLogger('churn')
 
-    def __init__(self, hosts_filename=None, kill_coordinator_round=''):
+    def __init__(self, hosts_filename=None, kill_coordinator_round='', service_name='jgroups'):
+
+        self.service_name = service_name
         self.hosts = ['localhost']
         if hosts_filename is not None:
             with open(hosts_filename, 'r') as file:
@@ -55,15 +58,15 @@ class Churn:
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
             if self.periods in self.kill_coordinator_round:
                 command_suspend += [self.coordinator]
-                logging.debug(command_suspend)
-                subprocess.call(command_suspend)
-                logging.info("Coordinator on host localhost was suspended")
+                self.logger.debug(command_suspend)
+                subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
+                self.logger.info('Coordinator {:s} on host localhost was suspended'.format(self.coordinator))
                 self.coordinator = self.peer_list.pop(0)
                 return
 
             choice = random.choice(self.hosts)
             if choice not in self.containers:
-                command_ps = ["docker", "ps", "-aqf", "name=jgroups-service", "-f", "status=running"]
+                command_ps = ["docker", "ps", "-aqf", "name=%s" % self.service_name, "-f", "status=running"]
                 if choice != 'localhost':
                     command_ps = ["ssh", choice] + command_ps
 
@@ -75,18 +78,18 @@ class Churn:
 
             try:
                 container = random.choice(self.containers[choice])
-                logging.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
+                self.logger.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
                 while container == self.coordinator:
                     container = random.choice(self.containers[choice])
                 self.containers[choice].remove(container)
             except ValueError or IndexError:
-                logging.error("No container available")
+                self.logger.error('No container available')
                 return
 
             command_suspend += [container]
-            subprocess.call(command_suspend)
-            logging.info("Container {} on host {} was suspended"
-                         .format(container, choice))
+            subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
+            self.logger.info('Container {} on host {} was suspended'
+                             .format(container, choice))
 
     def add_processes(self, to_create_nb):
         if to_create_nb < 0:
@@ -95,9 +98,14 @@ class Churn:
             return
         self.cluster_size += to_create_nb
         subprocess.call(["docker", "service", "scale",
-                         "jgroups-service={:d}".format(self.cluster_size)])
+                         "{:s}={:d}".format(self.service_name, self.cluster_size)],
+                        stdout=subprocess.DEVNULL)
+        self.logger.info('Service scaled up to {:d}'.format(self.cluster_size))
 
     def add_suspend_processes(self, to_suspend_nb, to_create_nb):
         self.suspend_processes(to_suspend_nb)
         self.add_processes(to_create_nb)
         self.periods += 1
+
+    def set_logger_level(self, log_level):
+        self.logger.setLevel(log_level)
