@@ -128,7 +128,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(dest='churn', help='Specify churn and its arguments')
 
     churn_parser = subparsers.add_parser('churn', help='Activate churn')
-    churn_parser.add_argument('delta', type=int, default=60,
+    churn_parser.add_argument('delta', type=int,
                               help='The interval between killing/adding new containers in s')
     churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+',
                               help='Kill the coordinator at the specified periods')
