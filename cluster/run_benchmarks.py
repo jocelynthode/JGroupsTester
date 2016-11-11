@@ -217,7 +217,6 @@ if __name__ == '__main__':
                        mounts=[types.Mount(target='/data', source=LOG_STORAGE, type='bind')], replicas=service_replicas)
 
         logger.info('Running EpTO tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
-        # TODO don't stop when full (50/50)
         wait_on_service(SERVICE_NAME, 0, inverse=True)
         if args.churn:
             logger.info('Running with churn')
