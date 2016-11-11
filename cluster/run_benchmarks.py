@@ -22,12 +22,14 @@ from nodes_trace import NodesTrace
 
 cli = docker.Client(base_url='unix://var/run/docker.sock')
 MANAGER_IP = '172.16.2.119'
-LOG_STORAGE = '/home/debian/data'
-LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
+LOCAL_DATA = '/home/jocelyn/tmp/data'
+CLUSTER_DATA = '/home/debian/data'
+LOCAL_DATA_FILES = '{:s}/*.txt'.format(LOCAL_DATA)
 REPOSITORY = 'swarm-m:5000/'
 SERVICE_NAME = 'jgroups'
 TRACKER_NAME = 'jgroups-tracker'
 NETWORK_NAME = 'jgroups_network'
+SUBNET = '172.111.0.0/16'
 
 
 def create_service(service_name, image, env=None, mounts=None, placement=None, replicas=1):
@@ -63,7 +65,7 @@ def run_churn(time_to_start):
     logger.debug('Initial size: {}'.format(nodes_trace.initial_size()))
     churn.add_processes(nodes_trace.initial_size())
     nodes_trace.next()
-    delay = (time_to_start - (time.time() * 1000)) // 1000
+    delay = int((time_to_start - (time.time() * 1000)) / 1000)
     logger.debug('Delay: {:d}'.format(delay))
     logger.info('Starting churn at {:s} UTC'
                 .format(datetime.utcfromtimestamp(time_to_start // 1000).isoformat()))
@@ -153,6 +155,7 @@ if __name__ == '__main__':
     def signal_handler(signal, frame):
         logger.info('Stopping Benchmarks')
         try:
+            # TODO when one of the service wasn't created still remove the other
             cli.remove_service(SERVICE_NAME)
             cli.remove_service(TRACKER_NAME)
             if not args.local:
@@ -161,10 +164,10 @@ if __name__ == '__main__':
                     for host in file.read().splitlines():
                         subprocess.call('rsync --remove-source-files '
                                         '-av {:s}:{:s}/*.txt ../data'
-                                        .format(host, LOG_STORAGE), shell=True)
+                                        .format(host, CLUSTER_DATA), shell=True)
                         subprocess.call('rsync --remove-source-files '
                                         '-av {:s}:{:s}/capture/*.csv ../data/capture'
-                                        .format(host, LOG_STORAGE), shell=True)
+                                        .format(host, CLUSTER_DATA), shell=True)
         except errors.NotFound:
             pass
         exit(0)
@@ -192,7 +195,7 @@ if __name__ == '__main__':
             token = cli.inspect_swarm()['JoinTokens']['Worker']
             subprocess.call(['parallel-ssh', '-t', '0', '-h', 'hosts', 'docker', 'swarm',
                              'join', '--token', token, '{:s}:2377'.format(MANAGER_IP)])
-        ipam_pool = utils.create_ipam_pool(subnet='172.111.0.0/16')
+        ipam_pool = utils.create_ipam_pool(subnet=SUBNET)
         ipam_config = utils.create_ipam_config(pool_configs=[ipam_pool])
         cli.create_network(NETWORK_NAME, 'overlay', ipam=ipam_config)
     except errors.APIError:
@@ -213,17 +216,18 @@ if __name__ == '__main__':
         logger.debug(environment_vars)
 
         service_replicas = 0 if args.churn else args.peer_number
+        log_storage = LOCAL_DATA if args.local else CLUSTER_DATA
         create_service(SERVICE_NAME, service_image, env=environment_vars,
-                       mounts=[types.Mount(target='/data', source=LOG_STORAGE, type='bind')], replicas=service_replicas)
+                       mounts=[types.Mount(target='/data', source=log_storage, type='bind')], replicas=service_replicas)
 
         logger.info('Running EpTO tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
-        wait_on_service(SERVICE_NAME, 0, inverse=True)
         if args.churn:
-            logger.info('Running with churn')
             threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
+            logger.info('Running with churn')
             # TODO find a way to stop at the right moment
             wait_on_service(SERVICE_NAME, 10)
         else:
+            wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running without churn')
             wait_on_service(SERVICE_NAME, 0)
 
@@ -237,14 +241,14 @@ if __name__ == '__main__':
             subprocess.call('parallel-ssh -t 0 -h hosts "mkdir -p {path}/test-{nb}/capture &&'
                             ' mv {path}/*.txt {path}/test-{nb}/ &&'
                             ' mv {path}/capture/*.csv {path}/test-{nb}/capture/"'
-                            .format(path=LOG_STORAGE, nb=run_nb), shell=True)
+                            .format(path=CLUSTER_DATA, nb=run_nb), shell=True)
 
-            subprocess.call('mkdir -p {path}/test-{nb}/capture'.format(path=LOG_STORAGE, nb=run_nb),
-                            shell=True)
-            subprocess.call('mv {path}/*.txt {path}/test-{nb}/'.format(path=LOG_STORAGE, nb=run_nb),
-                            shell=True)
-            subprocess.call('mv {path}/capture/*.csv {path}/test-{nb}/capture/'.format(path=LOG_STORAGE, nb=run_nb),
-                            shell=True)
+        subprocess.call('mkdir -p {path}/test-{nb}/capture'.format(path=log_storage, nb=run_nb),
+                        shell=True)
+        subprocess.call('mv {path}/*.txt {path}/test-{nb}/'.format(path=log_storage, nb=run_nb),
+                        shell=True)
+        subprocess.call('mv {path}/capture/*.csv {path}/test-{nb}/capture/'.format(path=log_storage, nb=run_nb),
+                        shell=True)
 
     logger.info('Benchmark done!')
 
