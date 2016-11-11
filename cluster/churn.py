@@ -66,7 +66,7 @@ class Churn:
 
             choice = random.choice(self.hosts)
             if choice not in self.containers:
-                command_ps = ["docker", "ps", "-aqf", "name=%s" % self.service_name, "-f", "status=running"]
+                command_ps = ["docker", "ps", "-aqf", "name={:s}".format(self.service_name), "-f", "status=running"]
                 if choice != 'localhost':
                     command_ps = ["ssh", choice] + command_ps
 

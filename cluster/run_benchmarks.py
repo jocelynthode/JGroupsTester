@@ -22,7 +22,7 @@ from nodes_trace import NodesTrace
 
 cli = docker.Client(base_url='unix://var/run/docker.sock')
 MANAGER_IP = '172.16.2.119'
-LOG_STORAGE = '/home/jocelyn/tmp/data'
+LOG_STORAGE = '/home/debian/data'
 LOCAL_DATA_FILES = '/home/jocelyn/tmp/data/*.txt'
 REPOSITORY = 'swarm-m:5000/'
 SERVICE_NAME = 'jgroups'
@@ -43,7 +43,7 @@ def create_service(service_name, image, env=None, mounts=None, placement=None, r
 
 
 def run_churn(time_to_start):
-    logger.debug('Time to start churn: %d' % time_to_start)
+    logger.debug('Time to start churn: {:d}'.format(time_to_start))
     if args.synthetic:
         logger.info(args.synthetic)
         nodes_trace = NodesTrace(synthetic=args.synthetic)
@@ -64,7 +64,7 @@ def run_churn(time_to_start):
     churn.add_processes(nodes_trace.initial_size())
     nodes_trace.next()
     delay = (time_to_start - (time.time() * 1000)) // 1000
-    logger.debug('Delay: %d' % delay)
+    logger.debug('Delay: {:d}'.format(delay))
     logger.info('Starting churn at {:s} UTC'
                 .format(datetime.utcfromtimestamp(time_to_start // 1000).isoformat()))
     time.sleep(delay)
@@ -86,13 +86,24 @@ def run_churn(time_to_start):
     logger.info('Churn finished')
 
 
-def wait_on_service(service_name, containers_nb):
-    current_nb = -11
-    while current_nb != containers_nb:
-        time.sleep(5)
-        output = subprocess.check_output(['docker', 'service', 'ls', '-f', 'name=%s' % service_name],
+def wait_on_service(service_name, containers_nb, inverse=False):
+    def get_nb():
+        output = subprocess.check_output(['docker', 'service', 'ls', '-f', 'name={:s}'.format(service_name)],
                                          universal_newlines=True).splitlines()[1]
-        current_nb = int(re.match(r'.+(\d+)/\d+', output).group(1))
+        return int(re.match(r'.+ (\d+)/\d+', output).group(1))
+
+    if inverse:  # Wait while current nb is equal to containers_nb
+        current_nb = containers_nb
+        while current_nb == containers_nb:
+            logger.debug('current_nb={:d}, containers_nb={:d}'.format(current_nb, containers_nb))
+            time.sleep(1)
+            current_nb = get_nb()
+    else:
+        current_nb = -1
+        while current_nb != containers_nb:
+            logger.debug('current_nb={:d}, containers_nb={:d}'.format(current_nb, containers_nb))
+            time.sleep(5)
+            current_nb = get_nb()
 
 
 def create_logger():
@@ -146,13 +157,14 @@ if __name__ == '__main__':
             cli.remove_service(TRACKER_NAME)
             if not args.local:
                 time.sleep(15)
-                with subprocess.Popen(['while', 'read', 'ip;', 'do', 'rsync', '--remove-source-files',
-                                       '-av', '"${ip}":~/data/"', '../data/', 'done', '<hosts'],
-                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                      universal_newlines=True) as p:
-                    for line in p.stdout:
-                        print(line, end='')
-
+                with open('hosts', 'r') as file:
+                    for host in file.read().splitlines():
+                        subprocess.call('rsync --remove-source-files '
+                                        '-av {:s}:{:s}/*.txt ../data'
+                                        .format(host, LOG_STORAGE), shell=True)
+                        subprocess.call('rsync --remove-source-files '
+                                        '-av {:s}:{:s}/capture/*.csv ../data/capture'
+                                        .format(host, LOG_STORAGE), shell=True)
         except errors.NotFound:
             pass
         exit(0)
@@ -169,17 +181,17 @@ if __name__ == '__main__':
     else:
         service_image = REPOSITORY + SERVICE_NAME
         tracker_image = REPOSITORY + TRACKER_NAME
-        for line in cli.pull(service_image, stream=True):
-            print(line, end='')
+        for line in cli.pull(service_image, stream=True, decode=True):
+            print(line)
         for line in cli.pull(tracker_image, stream=True):
-            print(line, end='')
-
+            print(line)
     try:
         cli.init_swarm()
         if not args.local:
+            logger.info('Joining Swarm on every hosts:')
             token = cli.inspect_swarm()['JoinTokens']['Worker']
-            subprocess.call(['parallel-ssh', '-t', '0', '-h', 'hosts',
-                            '"docker swarm join --token {:s} {:s}:2377"'.format(token, MANAGER_IP)])
+            subprocess.call(['parallel-ssh', '-t', '0', '-h', 'hosts', 'docker', 'swarm',
+                             'join', '--token', token, '{:s}:2377'.format(MANAGER_IP)])
         ipam_pool = utils.create_ipam_pool(subnet='172.111.0.0/16')
         ipam_config = utils.create_ipam_config(pool_configs=[ipam_pool])
         cli.create_network(NETWORK_NAME, 'overlay', ipam=ipam_config)
@@ -192,20 +204,21 @@ if __name__ == '__main__':
     for run_nb, _ in enumerate(range(args.runs), 1):
         create_service(TRACKER_NAME, tracker_image, placement={'Constraints': ['node.role == manager']})
         wait_on_service(TRACKER_NAME, 1)
-        time_to_start = (time.time() * 1000) + args.time_add
+        time_to_start = int((time.time() * 1000) + args.time_add)
         logger.debug(datetime.utcfromtimestamp(time_to_start / 1000).isoformat())
         environment_vars = {'PEER_NUMBER': args.peer_number, 'TIME': time_to_start,
                             'EVENTS_TO_SEND': args.events_to_send, 'RATE': args.rate,
                             'FIXED_RATE': args.fixed_rate}
-        environment_vars = ['%s=%d' % (k, v) for k, v in environment_vars.items()]
+        environment_vars = ['{:s}={:d}'.format(k, v) for k, v in environment_vars.items()]
         logger.debug(environment_vars)
 
         service_replicas = 0 if args.churn else args.peer_number
         create_service(SERVICE_NAME, service_image, env=environment_vars,
                        mounts=[types.Mount(target='/data', source=LOG_STORAGE, type='bind')], replicas=service_replicas)
 
-        logger.info('Running EpTO tester -> Experiment: %d/%d' % (run_nb, args.runs))
-        #wait_on_service(SERVICE_NAME, 1)
+        logger.info('Running EpTO tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
+        # TODO don't stop when full (50/50)
+        wait_on_service(SERVICE_NAME, 0, inverse=True)
         if args.churn:
             logger.info('Running with churn')
             threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
@@ -222,13 +235,17 @@ if __name__ == '__main__':
         time.sleep(30)
 
         if not args.local:
-            subprocess.call(['parallel-ssh', '-t', '0', '-h', 'hosts',
-                             '"mkdir -p data/test-$i/capture &&  mv data/*.txt data/test-{:d} '
-                             '&& mv data/capture/*.csv data/test-{:d}/capture"'.format(run_nb, run_nb)])
+            subprocess.call('parallel-ssh -t 0 -h hosts "mkdir -p {path}/test-{nb}/capture &&'
+                            ' mv {path}/*.txt {path}/test-{nb}/ &&'
+                            ' mv {path}/capture/*.csv {path}/test-{nb}/capture/"'
+                            .format(path=LOG_STORAGE, nb=run_nb), shell=True)
 
-            subprocess.call(['mkdir', '-p', '~/data/test-{:d}/capture'.format(run_nb)])
-            subprocess.call(['mv', '~/data/*.txt', '~/data/test-{:d}'.format(run_nb)])
-            subprocess.call(['mv', '~/data/capture/*.csv', '~/data/test-{:d}/capture'.format(run_nb)])
+            subprocess.call('mkdir -p {path}/test-{nb}/capture'.format(path=LOG_STORAGE, nb=run_nb),
+                            shell=True)
+            subprocess.call('mv {path}/*.txt {path}/test-{nb}/'.format(path=LOG_STORAGE, nb=run_nb),
+                            shell=True)
+            subprocess.call('mv {path}/capture/*.csv {path}/test-{nb}/capture/'.format(path=LOG_STORAGE, nb=run_nb),
+                            shell=True)
 
     logger.info('Benchmark done!')
 
