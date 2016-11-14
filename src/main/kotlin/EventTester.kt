@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit
  *
  * @author Jocelyn Thode
  */
-class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, val startTime: Long, val fixedRate: Int)
+class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val timeToRun: Int, val fixedRate: Int)
 : ReceiverAdapter() {
 
     val logger = LogManager.getLogger(this.javaClass)!!
@@ -27,21 +27,22 @@ class EventTester(val eventsToSend: Int, val peerNumber: Int, val rate: Long, va
     var channel = JChannel("sequencer-tcpgossip.xml")
     val runJGroups = Runnable {
         try {
+            val endTime = startTime + timeToRun
+            logger.info("JGroups will end at {} UTC",
+                    LocalDateTime.ofEpochSecond((endTime / 1000), 0, ZoneOffset.ofHours(0)))
             logger.info("View: ${channel.view.members.joinToString(separator = ",") { it.toString().substringBefore('-') } }")
             val probability: Double = if (fixedRate == -1) 1.0 else (fixedRate / peerNumber.toDouble())
-            logger.info("Sending: $eventsToSend events (rate: 1 every ${rate}ms) with a probability of $probability")
-            var i = 0
-            while (i <  eventsToSend) {
+            logger.info("Sending 1 event every ${rate}ms) with a probability of $probability")
+            while (System.currentTimeMillis() < endTime) {
                 Thread.sleep(rate)
                 if (Math.random() < probability) {
                     val msg = Message(null, channel.address, "${UUID.randomUUID()}")
                     logger.info("Sending: ${msg.`object`}")
                     channel.send(msg)
                 }
-                i++
                 logger.debug("Coordinator is {}", channel.view.creator)
             }
-            i = 0
+            var i = 0
             while (i < 30) {
                 Thread.sleep(10000)
                 i++
@@ -98,12 +99,10 @@ fun main(args: Array<String>) {
     parser.defaultHelp(true)
     parser.addArgument("peerNumber").help("Peer number")
             .type(Integer.TYPE)
-            .setDefault(35)
     parser.addArgument("scheduleAt").help("Schedule Jgroups to start at a specific time in milliseconds")
             .type(Long::class.java)
-    parser.addArgument("-e", "--events").help("Number of events to send")
+    parser.addArgument("timeToRun").help("Delay after which to stop from scheduleAt (in ms)")
             .type(Integer.TYPE)
-            .setDefault(12)
     parser.addArgument("-r", "--rate").help("Time between each event broadcast in ms")
             .type(Long::class.java)
             .setDefault(1000L)
@@ -114,8 +113,8 @@ fun main(args: Array<String>) {
 
     try {
         val res = parser.parseArgs(args)
-        val eventTester = EventTester(res.getInt("events"), res.getInt("peerNumber"), res.getLong("rate"),
-                res.getLong("scheduleAt"), res.getInt("fixed_rate"))
+        val eventTester = EventTester(res.getInt("peerNumber"), res.getLong("rate"),
+                res.getLong("scheduleAt"), res.getInt("timeToRun"), res.getInt("fixed_rate"))
         eventTester.start()
         while (true) Thread.sleep(500)
     } catch (e: ArgumentParserException) {
