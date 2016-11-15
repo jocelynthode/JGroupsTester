@@ -25,11 +25,11 @@ MANAGER_IP = '172.16.2.119'
 LOCAL_DATA = '/home/jocelyn/tmp/data'
 CLUSTER_DATA = '/home/debian/data'
 LOCAL_DATA_FILES = '{:s}/*.txt'.format(LOCAL_DATA)
-REPOSITORY = 'swarm-m:5000/'
+DISTANT_REPOSITORY = 'swarm-m:5000/'
 SERVICE_NAME = 'jgroups'
 TRACKER_NAME = 'jgroups-tracker'
 NETWORK_NAME = 'jgroups_network'
-SUBNET = '172.112.0.0/16'
+SUBNET = '172.113.0.0/16'
 
 
 def create_service(service_name, image, env=None, mounts=None, placement=None, replicas=1):
@@ -54,11 +54,14 @@ def run_churn(time_to_start):
 
     if args.local:
         hosts_fname = None
+        repository = ''
     else:
         hosts_fname = 'hosts'
+        repository = DISTANT_REPOSITORY
 
     delta = args.delta
-    churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME)
+    churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME,
+                  repository=repository)
     churn.set_logger_level(log_level)
 
     # Add initial cluster
@@ -190,8 +193,8 @@ if __name__ == '__main__':
             for line in p.stdout:
                 print(line, end='')
     else:
-        service_image = REPOSITORY + SERVICE_NAME
-        tracker_image = REPOSITORY + TRACKER_NAME
+        service_image = DISTANT_REPOSITORY + SERVICE_NAME
+        tracker_image = DISTANT_REPOSITORY + TRACKER_NAME
         for line in cli.pull(service_image, stream=True, decode=True):
             print(line)
         for line in cli.pull(tracker_image, stream=True):
@@ -234,6 +237,8 @@ if __name__ == '__main__':
             wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running with churn')
             if args.synthetic:
+                # Wait for some peers to at least start
+                time.sleep(120)
                 total = [sum(x) for x in zip(*args.synthetic)]
                 # Wait until only stopped containers are still alive
                 wait_on_service(SERVICE_NAME, containers_nb=total[0], total_nb=total[1])
