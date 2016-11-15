@@ -51,35 +51,45 @@ class Churn:
         self.cluster_size = 0
 
     def suspend_processes(self, to_suspend_nb):
+        already_killed = False
         if to_suspend_nb < 0:
             raise ArithmeticError('Suspend number must be greater or equal to 0')
         if to_suspend_nb == 0:
             return
+
+        # Retrieve all containers id
+        if not self.containers:
+            for host in self.hosts:
+                command_ps = ["docker", "ps", "-aqf",
+                              "name={service},status=running,ancestor={repo}{service}".format(
+                                  service=self.service_name, repo=self.repository)]
+                if host != 'localhost':
+                    command_ps = ["ssh", host] + command_ps
+
+                self.containers[host] = subprocess.check_output(command_ps,
+                                                                universal_newlines=True).splitlines()
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
-            if self.periods in self.kill_coordinator_round:
+            if not already_killed and self.periods in self.kill_coordinator_round:
                 command_suspend += [self.coordinator]
-                self.logger.debug(command_suspend)
-                subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
-                self.logger.info('Coordinator {:s} on host localhost was suspended'.format(self.coordinator))
+                for host, containers in self.containers.items():
+                    if self.coordinator in containers:
+                        if host != 'localhost':
+                            command_suspend = ["ssh", host] + command_suspend
+
+                        subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
+                        self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
+                        break
+
                 self.coordinator = self.peer_list.pop(0)
-                return
+                already_killed = True
+                continue
 
             # Retry until we find a working choice
             count = 0
             while count < 3:
                 try:
                     choice = random.choice(self.hosts)
-                    if choice not in self.containers:
-                        command_ps = ["docker", "ps", "-aqf",
-                                      "name={service},status=running,ancestor={repo}{service}".format(
-                                          service=self.service_name, repo=self.repository)]
-                        if choice != 'localhost':
-                            command_ps = ["ssh", choice] + command_ps
-
-                        self.containers[choice] = subprocess.check_output(command_ps,
-                                                                          universal_newlines=True).splitlines()
-
                     if choice != 'localhost':
                         command_suspend = ["ssh", choice] + command_suspend
 
