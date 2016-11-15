@@ -29,7 +29,7 @@ REPOSITORY = 'swarm-m:5000/'
 SERVICE_NAME = 'jgroups'
 TRACKER_NAME = 'jgroups-tracker'
 NETWORK_NAME = 'jgroups_network'
-SUBNET = '172.111.0.0/16'
+SUBNET = '172.112.0.0/16'
 
 
 def create_service(service_name, image, env=None, mounts=None, placement=None, replicas=1):
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     churn_parser = subparsers.add_parser('churn', help='Activate churn')
     churn_parser.add_argument('delta', type=int,
                               help='The interval between killing/adding new containers in s')
-    churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+',
+    churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+', default=[-1],
                               help='Kill the coordinator at the specified periods')
     churn_parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
                               help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
@@ -233,16 +233,19 @@ if __name__ == '__main__':
             threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
             wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running with churn')
-            # TODO find a way to stop at the right moment
-            churn_nb = sum(a+b for a, b in args.synthetic[1:])
-            wait_on_service(SERVICE_NAME, churn_nb, total_nb=sum(b for _, b in args.synthetic))
+            if args.synthetic:
+                total = [sum(x) for x in zip(*args.synthetic)]
+                # Wait until only stopped containers are still alive
+                wait_on_service(SERVICE_NAME, containers_nb=total[0], total_nb=total[1])
+            else:
+                raise NotImplementedError
         else:
             wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running without churn')
             wait_on_service(SERVICE_NAME, 0)
 
-        cli.remove_service(SERVICE_NAME)
         cli.remove_service(TRACKER_NAME)
+        cli.remove_service(SERVICE_NAME)
 
         logger.info('Services removed')
         time.sleep(30)
