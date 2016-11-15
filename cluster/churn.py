@@ -51,7 +51,6 @@ class Churn:
         self.cluster_size = 0
 
     def suspend_processes(self, to_suspend_nb):
-        already_killed = False
         if to_suspend_nb < 0:
             raise ArithmeticError('Suspend number must be greater or equal to 0')
         if to_suspend_nb == 0:
@@ -68,6 +67,7 @@ class Churn:
 
                 self.containers[host] = subprocess.check_output(command_ps,
                                                                 universal_newlines=True).splitlines()
+        already_killed = False
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
             if not already_killed and self.periods in self.kill_coordinator_round:
