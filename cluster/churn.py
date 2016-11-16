@@ -33,13 +33,13 @@ class Churn:
 
     A class in charge of adding/suspending nodes to create churn in a JGroups SEQUENCER cluster
     """
-    containers = {}
-    coordinator = None
-    peer_list = []
-    periods = 0
-    logger = logging.getLogger('churn')
 
     def __init__(self, hosts_filename=None, kill_coordinator_round='', service_name='jgroups', repository=''):
+        self.containers = {}
+        self.coordinator = None
+        self.peer_list = []
+        self.periods = 0
+        self.logger = logging.getLogger('churn')
 
         self.service_name = service_name
         self.repository = repository
@@ -67,6 +67,8 @@ class Churn:
 
                 self.containers[host] = subprocess.check_output(command_ps,
                                                                 universal_newlines=True).splitlines()
+            self.logger.debug(self.containers)
+
         already_killed = False
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
@@ -77,9 +79,13 @@ class Churn:
                         if host != 'localhost':
                             command_suspend = ["ssh", host] + command_suspend
 
-                        subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
-                        self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
-                        break
+                        try:
+                            subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
+                            self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
+                        except subprocess.CalledProcessError:
+                            self.logger.error("Container couldn't be removed", exc_info=True)
+                        finally:
+                            break
 
                 self.coordinator = self.peer_list.pop(0)
                 already_killed = True
@@ -110,9 +116,13 @@ class Churn:
                 break
 
             command_suspend += [container]
-            subprocess.call(command_suspend, stdout=subprocess.DEVNULL)
-            self.logger.info('Container {} on host {} was suspended'
-                             .format(container, choice))
+            try:
+                subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
+                self.logger.info('Container {} on host {} was suspended'
+                                 .format(container, choice))
+                self.peer_list.remove(container)
+            except subprocess.CalledProcessError:
+                self.logger.error("Container couldn't be removed", exc_info=True)
 
     def add_processes(self, to_create_nb):
         if to_create_nb < 0:

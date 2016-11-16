@@ -183,6 +183,7 @@ if __name__ == '__main__':
             pass
         exit(0)
     signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     if args.local:
         service_image = SERVICE_NAME
@@ -231,7 +232,7 @@ if __name__ == '__main__':
         create_service(SERVICE_NAME, service_image, env=environment_vars,
                        mounts=[types.Mount(target='/data', source=log_storage, type='bind')], replicas=service_replicas)
 
-        logger.info('Running EpTO tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
+        logger.info('Running JGroups tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
         if args.churn:
             threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
             wait_on_service(SERVICE_NAME, 0, inverse=True)
