@@ -14,7 +14,7 @@ def churn_tuple(s):
         raise TypeError("Tuples must be (int, int)")
 
 
-def get_peer_list(path='../data/*.txt'):
+def get_peer_list(peer_number, path='../data/*.txt'):
     with open(glob.glob(path)[0], 'r') as f:
         a_list = []
         for line in f.readlines():
@@ -24,6 +24,8 @@ def get_peer_list(path='../data/*.txt'):
                 break
         if not a_list:
             raise LookupError('No view found in file {}'.format(f.name))
+        if len(a_list) < peer_number:
+            raise AssertionError('Peer List is smaller than expected')
         return a_list
 
 
