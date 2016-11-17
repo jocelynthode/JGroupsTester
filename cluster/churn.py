@@ -125,6 +125,8 @@ class Churn:
                 self.peer_list.remove(container)
             except subprocess.CalledProcessError:
                 self.logger.error("Container couldn't be removed", exc_info=True)
+            except ValueError:
+                pass
 
     def add_processes(self, to_create_nb):
         if to_create_nb < 0:
