@@ -104,6 +104,7 @@ class Churn:
                     container = random.choice(self.containers[choice])
                     self.logger.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
                     while container == self.coordinator:
+                        choice = random.choice(self.hosts)
                         container = random.choice(self.containers[choice])
                     self.containers[choice].remove(container)
                 except (ValueError, IndexError):
