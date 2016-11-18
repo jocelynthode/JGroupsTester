@@ -156,4 +156,4 @@ if check_list_all_identical(all_delivered):
 else:
     for idx, result in enumerate(all_delivered):
         if not result:
-            print("Experiment %d didn't deliver every event sent")
+            print("Experiment %d didn't deliver every event sent" % idx)
