@@ -74,10 +74,14 @@ def run_churn(time_to_start):
                 .format(datetime.utcfromtimestamp(time_to_start // 1000).isoformat()))
     time.sleep(delay)
     logger.info('Starting churn')
-    if args.local:
-        churn.peer_list = get_peer_list(args.peer_number, LOCAL_DATA_FILES)
-    else:
-        churn.peer_list = get_peer_list(args.peer_number)
+    try:
+        if args.local:
+            churn.peer_list = get_peer_list(args.peer_number, LOCAL_DATA_FILES)
+        else:
+            churn.peer_list = get_peer_list(args.peer_number)
+    except (LookupError, AssertionError):
+        logger.error('Experiment failed')
+        return
 
     logger.debug(churn.peer_list)
     churn.coordinator = churn.peer_list.pop(0)
