@@ -108,13 +108,13 @@ class Churn:
                         container = random.choice(self.containers[choice])
                     self.containers[choice].remove(container)
                 except (ValueError, IndexError):
+                    count += 1
                     if not self.containers[choice]:
                         self.hosts.remove(choice)
                     self.logger.error('Error when trying to pick a container')
                     if count == 3:
                         self.logger.error('Stopping churn because no container was found')
                         raise
-                    count += 1
                     continue
                 break
 
@@ -135,9 +135,20 @@ class Churn:
         if to_create_nb == 0:
             return
         self.cluster_size += to_create_nb
-        subprocess.call(["docker", "service", "scale",
-                         "{:s}={:d}".format(self.service_name, self.cluster_size)],
-                        stdout=subprocess.DEVNULL)
+        i = 0
+        while True:
+            try:
+                subprocess.check_call(["docker", "service", "scale",
+                                       "{:s}={:d}".format(self.service_name, self.cluster_size)],
+                                      stdout=subprocess.DEVNULL)
+                break
+            except subprocess.CalledProcessError:
+                if i >= 5:
+                    raise
+                self.logger.error("Couldn't scale service")
+                i += 1
+                continue
+
         self.logger.info('Service scaled up to {:d}'.format(self.cluster_size))
 
     def add_suspend_processes(self, to_suspend_nb, to_create_nb):
