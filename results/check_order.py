@@ -4,6 +4,7 @@ from collections import namedtuple
 import argparse
 import difflib
 import logging
+import progressbar
 
 Stats = namedtuple('Stats', ['events'])
 is_out_of_order = False
@@ -27,11 +28,14 @@ logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level)
 
 
 def all_events():
-    for file in args.files:
+    logging.info('Importing files...')
+    bar = progressbar.ProgressBar()
+    for file in bar(args.files):
         with open(file, 'r') as f:
             uuids = extract_events(f)
         yield f.name, uuids
 
+sent_events = []
 
 def extract_events(file):
     events = []
@@ -39,6 +43,10 @@ def extract_events(file):
         match = re.match(r'\d+ - Delivered: (.+)', line)
         if match:
             events.append(match.group(1))
+        else:
+            match = re.match(r'\d+ - Sending: (.+)', line)
+            if match:
+                sent_events.append(match.group(1))
     return Stats(events)
 
 
@@ -102,3 +110,20 @@ for name, a_list in events.items():
 
 if not has_duplicate:
     logging.info('No files has any duplicate!')
+
+# This part checks in case EpTO logs that it has sent an event but was interrupted before actually
+# sending it
+no_problem = False
+if len(complete_list) == sent_events:
+    no_problem = True
+
+# There might be a problem
+churn_problem = False
+if not no_problem:
+    for event in sent_events:
+        if not any(True for event_list in events.values() if event in event_list):
+            churn_problem = True
+            logging.info('Event {:s} was never sent due to churn. Please remove it.'.format(event))
+if no_problem or not churn_problem:
+    logging.info('All events claimed to be sent were sent')
+
