@@ -254,8 +254,10 @@ if __name__ == '__main__':
             logger.info('Running without churn')
             wait_on_service(SERVICE_NAME, 0)
 
-        cli.remove_service(TRACKER_NAME)
+        logger.info('Waiting for stabilisation')
+        time.sleep(20)
         cli.remove_service(SERVICE_NAME)
+        cli.remove_service(TRACKER_NAME)
 
         logger.info('Services removed')
         time.sleep(30)

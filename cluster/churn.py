@@ -81,12 +81,18 @@ class Churn:
                         if host != 'localhost':
                             command_suspend = ["ssh", host] + command_suspend
 
-                        try:
-                            subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
-                            self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
-                        except subprocess.CalledProcessError:
-                            self.logger.error("Container couldn't be removed", exc_info=True)
-                        finally:
+                        count = 0
+                        while count < 3:
+                            try:
+                                subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
+                                self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
+                            except subprocess.CalledProcessError:
+                                count += 1
+                                self.logger.error("Container couldn't be removed, retrying...")
+                                if count >= 3:
+                                    self.logger.error("Container couldn't be removed", exc_info=True)
+                                    raise
+                                continue
                             break
 
                 self.coordinator = self.peer_list.pop(0)
