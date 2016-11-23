@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.5
 import argparse
 import csv
+import progressbar
 import re
 import statistics
 from collections import namedtuple
@@ -87,7 +88,9 @@ def extract_stats(file):
 
 
 def all_stats():
-    for file in args.files:
+    print('Importing files...')
+    bar = progressbar.ProgressBar()
+    for file in bar(args.files):
         with open(file, 'r') as f:
             file_stats = extract_stats(f)
         yield file_stats
@@ -156,7 +159,6 @@ for i in range(experiments_nb):
     print("Ratio events received/sent: {:.10g}".format(events_received / events_sent))
     print("-------------------------------------------")
     all_delivered.append(events_sent == events_received)
-print("-------------------------------------------")
 
 
 def check_list_all_identical(lst):
@@ -173,19 +175,25 @@ else:
 with open('local-time-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['local_time'])
     writer.writeheader()
-    for duration in durations:
+    print('Writing local times to csv file...')
+    bar = progressbar.ProgressBar()
+    for duration in bar(durations):
         writer.writerow({'local_time': duration})
 
 with open('global-time-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['global_time'])
     writer.writeheader()
-    for duration in global_times:
+    print('Writing global times to csv file...')
+    bar = progressbar.ProgressBar()
+    for duration in bar(global_times):
         writer.writerow({'global_time': duration})
 
 with open('delta-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['delta'])
     writer.writeheader()
-    for event, time in events_sent.items():
+    print('Writing delta to csv file...')
+    bar = progressbar.ProgressBar()
+    for event, time in bar(events_sent_time.items()):
         times = events_delivered[event]
         deltas = [a_time - time for a_time in times]
         for delta in deltas:
