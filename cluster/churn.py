@@ -125,15 +125,23 @@ class Churn:
                 break
 
             command_suspend += [container]
-            try:
-                subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
-                self.logger.info('Container {} on host {} was suspended'
-                                 .format(container, choice))
-                self.peer_list.remove(container)
-            except subprocess.CalledProcessError:
-                self.logger.error("Container couldn't be removed", exc_info=True)
-            except ValueError:
-                pass
+            count = 0
+            while count < 3:
+                try:
+                    subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
+                    self.logger.info('Container {} on host {} was suspended'
+                                     .format(container, choice))
+                    self.peer_list.remove(container)
+                except subprocess.CalledProcessError:
+                    count += 1
+                    self.logger.error("Container couldn't be removed, retrying...")
+                    if count >= 3:
+                        self.logger.error("Container couldn't be removed", exc_info=True)
+                        raise
+                    continue
+                except ValueError:
+                    pass
+                break
 
     def add_processes(self, to_create_nb):
         if to_create_nb < 0:

@@ -80,7 +80,7 @@ def run_churn(time_to_start):
         else:
             churn.peer_list = get_peer_list(args.peer_number)
     except (LookupError, AssertionError):
-        logger.error('Experiment failed')
+        logger.error('Experiment failed because not all peers started')
         return
 
     logger.debug(churn.peer_list)
