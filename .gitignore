@@ -192,6 +192,7 @@ gradle-app.setting
 /results/**/*.tar.gz
 /results/pss/**/*.tar.gz
 **/*.csv
+!/results/requirements.txt
 
 
 ## Python
