@@ -181,6 +181,7 @@ messages_sent = [stat.msg_sent for stat in stats if stat.msg_sent]
 messages_received = [stat.msg_received for stat in perfect_stats if stat.msg_received]
 
 all_delivered = []
+stats_events_sent = []
 for i in range(experiments_nb):
     start_index_sent = i * stats_length
     end_index_sent = start_index_sent + stats_length
@@ -188,7 +189,7 @@ for i in range(experiments_nb):
     end_index_received = start_index_received + perfect_length
     events_sent = sum(messages_sent[start_index_sent:end_index_sent])
     events_received = sum(messages_received[start_index_received:end_index_received]) / perfect_length
-
+    stats_events_sent.append(events_sent)
     print("Experiment %d:" % (i + 1))
     print("Total events sent: %d" % events_sent)
     print("Total events received on average: %f" % events_received)
@@ -242,3 +243,11 @@ with open('global-delta-stats.csv', 'w', newline='') as csvfile:
         deltas = [a_time - time for a_time in times]
         for delta in deltas:
             writer.writerow({'delta': delta})
+
+with open('event-sent-stats.csv', 'w', newline='') as csvfile:
+    writer = csv.DictWriter(csvfile, ['events-sent'])
+    writer.writeheader()
+    print('Writing events sent to csv file...')
+    bar = progressbar.ProgressBar()
+    for event_sent in stats_events_sent:
+        writer.writerows({'events-sent': event_sent})
