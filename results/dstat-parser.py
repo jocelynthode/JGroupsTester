@@ -2,14 +2,14 @@
 import argparse
 import csv
 import re
-
 import bitmath
 import matplotlib.pyplot as plt
-import matplotlib.style as pltstyle
+import numpy as np
 import pandas as pd
 import progressbar
 
-pltstyle.use('ggplot')
+
+
 parser = argparse.ArgumentParser(description='Process Bytes logs')
 parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse')
@@ -52,27 +52,28 @@ def open_files():
     return dfs
 
 
-plt.figure()
+print('Creating average bytes stats')
 dfs = open_files()
 all_df = pd.concat(dfs)
+all_df['throughput'] = (all_df['recv'] + all_df['send']) / (10**6)
 
-average_df = all_df.groupby(['test', 'time']).mean()[['recv', 'send']].unstack(level=0)
+quantiles = all_df.drop(['recv', 'send', 'experiment_nb'], axis=1).groupby(['test', 'time']).apply(
+    lambda x: x.quantile([.0, .25, .50, .75, 1.]))
+
+quantiles = quantiles.drop('time', axis=1)
+quantiles.index.names = ['test', 'time', 'quantile']
+quantiles = quantiles.unstack(level=[0, 2])['throughput']
+columns = []
 data = {}
-names = []
-for first, second in average_df:
-    name = '{:s}-{:s}'.format(second, first)
-    names.append(name)
-    data.update({name: average_df[first][second].values})
+for name, serie in quantiles.iteritems():
+    new_name = '{:s}-{:f}'.format(name[0], name[1])
+    columns.append(new_name)
+    data[new_name] = serie.values
 
-pd.DataFrame(index=average_df.index, columns=names, data=data).to_csv('average-bytes-sent-recv.csv')
+average_df = pd.DataFrame(data=data, columns=columns, index=quantiles.index)
+average_df.to_csv('average-bytes-sent-recv.csv', na_rep='nan')
 
-axes = average_df.plot(figsize=(20, 20))
-plt.title('Average bytes sent/received for a peer during an experiment')
-axes.set_xlabel('time (seconds)')
-axes.set_ylabel('bytes / seconds')
-plt.savefig('{:s}-peer-mean.png'.format(args.name))
-plt.close()
-
+print('Creating total bytes stats')
 plt.figure()
 sum_df = all_df.groupby(['test', 'experiment_nb']).sum()[['recv', 'send']]
 means = sum_df.mean(level=0)
@@ -89,8 +90,7 @@ ax.set_ylabel('bytes')
 plt.savefig('{:s}-peer-total.png'.format(args.name))
 means['recv-error'] = std['recv'].values
 means['send-error'] = std['send'].values
-means.to_csv('total-bytes-sent-recv.csv')
-
+means.to_csv('total-bytes-sent-recv.csv', na_rep='nan')
 
 def open_events(files):
     dfs = []
@@ -112,14 +112,15 @@ def open_events(files):
     return dfs
 
 
+print('Creating total events sent stats')
 plt.figure()
 event_sent_dfs = pd.concat(open_events(args.events_sent)).groupby('test')
 means = event_sent_dfs.mean()
 std = event_sent_dfs.std()
 ax = means.plot.bar(yerr=std, figsize=(20, 20), rot=30)
-means['recv-error'] = std['recv'].values
-means['send-error'] = std['send'].values
-means.to_csv('total-events-sent.csv')
+means['error'] = std['events-sent'].values
+means.to_csv('total-events-sent.csv', na_rep='nan')
+
 
 def open_times(files):
     dfs = []
@@ -141,47 +142,35 @@ def open_times(files):
     return dfs
 
 
-def create_cdf_plot(dfs, name, title):
+def create_cdf_plot(dfs, name, precision=1000):
     headers = []
+
     for df in dfs:
         headers.append('{:s}-x'.format(df['test'][0]))
         headers.append('{:s}-y'.format(df['test'][0]))
-    plt.figure()
-    axes = None
-    labels = []
     with open(name + '.csv', 'w', newline='') as csvfile:
         writer = csv.DictWriter(csvfile, headers)
         writer.writeheader()
 
         for df in dfs:
-            labels.append(df['test'][0])
-            axes = df.plot.hist(cumulative=True, normed=1, bins=100, histtype='step', ax=axes, legend=False)
-            axes.set_xlabel('time (ms)')
-            axes.set_ylim(0, 1)
-        for idx, patch in enumerate(axes.patches):
-            # Remove right border of last bin
-            patch.set_xy(patch.get_xy()[:-1])
-            x_row = '{:s}-x'.format(dfs[idx]['test'][0])
-            y_row = '{:s}-y'.format(dfs[idx]['test'][0])
-            bar = progressbar.ProgressBar()
-            print('Writing  bin to csv...')
-            for x, y in bar(patch.get_xy()):
-                writer.writerow({x_row: x, y_row: y})
-
-    lines = axes.get_legend_handles_labels()[0]
-    axes.legend(lines, labels, loc='lower right')
-    plt.title(title)
-    plt.savefig(name + '.png')
+            x_row = '{:s}-x'.format(df['test'][0])
+            y_row = '{:s}-y'.format(df['test'][0])
+            data = df.quantile(np.linspace(0, 1, precision+1))
+            for x, y in zip(data.values, data.index):
+                writer.writerow({x_row: x[0] / 1000, y_row: y})
 
 
+print('Creating local times stats')
 global_time_dfs = open_times(args.global_times)
-create_cdf_plot(global_time_dfs, '{:s}-global-time-cdf'.format(args.name), 'Global delivery time')
+create_cdf_plot(global_time_dfs, '{:s}-global-time-cdf'.format(args.name), 10)
 
+print('Creating local times stats')
 local_time_dfs = open_times(args.local_times)
-create_cdf_plot(local_time_dfs, '{:s}-local-time-cdf'.format(args.name), 'Local delivery time')
+create_cdf_plot(local_time_dfs, '{:s}-local-time-cdf'.format(args.name))
 
+print('Creating local delta stats')
 local_delta_dfs = open_times(args.local_delta_times)
-create_cdf_plot(local_delta_dfs, '{:s}-local-deltas-cdf'.format(args.name), 'Local Deltas')
+create_cdf_plot(local_delta_dfs, '{:s}-local-deltas-cdf'.format(args.name))
 
 # global_delta_dfs = open_times(args.global_delta_times)
 # create_cdf_plot(global_delta_dfs, '{:s}-global-deltas-cdf'.format(args.name), 'Global Deltas')

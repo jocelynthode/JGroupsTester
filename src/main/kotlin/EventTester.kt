@@ -9,6 +9,7 @@ import java.net.SocketException
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -25,6 +26,7 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
     val logger = LogManager.getLogger(this.javaClass)!!
 
     var channel = JChannel("sequencer-tcpgossip.xml")
+    private val sendTimes = ConcurrentHashMap<UUID, Long>()
     val runJGroups = Runnable {
         try {
             val endTime = startTime + timeToRun
@@ -36,8 +38,9 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
             while (System.currentTimeMillis() < endTime) {
                 Thread.sleep(rate)
                 if (Math.random() < probability) {
-                    val msg = Message(null, channel.address, "${UUID.randomUUID()}")
-                    logger.info("Sending: ${msg.`object`}")
+                    val msg = Message(null, channel.address, UUID.randomUUID())
+                    logger.info("Sending: ${msg.`object` as UUID}")
+                    sendTimes[msg.`object` as UUID] = System.nanoTime()
                     channel.send(msg)
                 }
                 logger.debug("Coordinator is {}", channel.view.creator)
@@ -90,7 +93,15 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
     }
 
     override fun receive(msg: Message) {
-        logger.info("Delivered: ${msg.`object`}")
+        val msgObject: UUID = msg.`object` as UUID
+        if (sendTimes.containsKey(msgObject)) {
+            val sendTime = sendTimes[msgObject] as Long
+            val delta = System.nanoTime() - sendTime
+            logger.info("Delivered: $msgObject -- Local Delta: $delta")
+            sendTimes.remove(msgObject)
+        } else {
+            logger.info("Delivered: $msgObject")
+        }
     }
 }
 
