@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This script needs to run in the container
-MY_IP_ADDR=$(/bin/hostname -I)
+MY_IP_ADDR=$(/bin/hostname -i)
 TRACKER_IP=$(dig +short jgroups-tracker)
 echo 'Starting jgroup peer'
 echo "${MY_IP_ADDR}"

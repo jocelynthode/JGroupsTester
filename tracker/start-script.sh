@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # This script needs to run in the container
-MY_IP_ADDR=$(/bin/hostname -I)
+MY_IP_ADDR=$(/bin/hostname -i)
 echo "${MY_IP_ADDR}"
 MY_IP_ADDR=($MY_IP_ADDR)
 echo "${MY_IP_ADDR[0]}"
