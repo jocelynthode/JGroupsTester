@@ -24,8 +24,20 @@ parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse (must be given by experiments)')
 parser.add_argument('-e', '--experiments-nb', metavar='EXPERIMENT_NB', type=int, default=1,
                     help='How many experiments were run')
+parser.add_argument('-i', '--ignore-events', metavar='FILE', type=argparse.FileType('r'),
+                    help='File containing unsent events due to churn (Given by check_order.py)')
 args = parser.parse_args()
 experiments_nb = args.experiments_nb
+ignored_events = []
+if args.ignore_events:
+    for line in iter(args.ignore_events):
+        match = re.match(r'.+TO IGNORE: (\[.+\])', line)
+        if match:
+            ignored_events.append(match.group(1))
+
+    print(ignored_events)
+
+
 local_deltas = []
 events_delivered = {}
 events_sent_time = {}
@@ -64,8 +76,11 @@ def extract_stats(file):
         events_sent_count = 0
         state = State.perfect
         for line in it:
-            match = re.match(r'(\d+) - Delivered: (.+)', line)
-            if match:
+            match = re.match(r'(\d+) - Delivered: (.+)|(\d+) - Sending: (.+)|'
+                             r'.+ - Time given was smaller than current time', line)
+            if not match:
+                continue
+            if match.group(1):
                 time = int(match.group(1))
                 event = match.group(2)
                 events_delivered[event] = time
@@ -75,12 +90,16 @@ def extract_stats(file):
                 result = int(match.group(1))
                 pos = file.tell()
                 continue
-            match = re.match(r'(\d+) - Sending: (.+)', line)
-            if match:
-                events_sent[match.group(2)] = int(match.group(1))
-                events_sent_count += 1
+            elif match.group(3):
+                if match.group(4) not in ignored_events:
+                    events_sent[match.group(4)] = int(match.group(3))
+                    events_sent_count += 1
+                else:
+                    print('Ignored Event!')
+                    print(file)
+                    print(match.group(4))
                 continue
-            if re.match(r'\d+ - Time given was smaller than current time', line):
+            else:
                 state = State.late
 
         file.seek(pos)

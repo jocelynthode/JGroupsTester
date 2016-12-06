@@ -41,6 +41,7 @@ class Churn:
         self.coordinator = None
         self.peer_list = []
         self.periods = 0
+        self.suspended_containers = []
         self.logger = logging.getLogger('churn')
 
         self.service_name = service_name
@@ -58,19 +59,6 @@ class Churn:
         if to_suspend_nb == 0:
             return
 
-        # Retrieve all containers id
-        if not self.containers:
-            for host in self.hosts:
-                command_ps = ["docker", "ps", "-aqf",
-                              "name={service},status=running,ancestor={repo}{service}".format(
-                                  service=self.service_name, repo=self.repository)]
-                if host != 'localhost':
-                    command_ps = ["ssh", host] + command_ps
-
-                self.containers[host] = subprocess.check_output(command_ps,
-                                                                universal_newlines=True).splitlines()
-            self.logger.debug(self.containers)
-
         already_killed = False
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGSTOP']
@@ -86,6 +74,7 @@ class Churn:
                             try:
                                 subprocess.check_call(command_suspend, stdout=subprocess.DEVNULL)
                                 self.logger.info('Coordinator {:s} on host {:s} was suspended'.format(self.coordinator, host))
+                                self.suspended_containers.append(self.coordinator)
                             except subprocess.CalledProcessError:
                                 count += 1
                                 self.logger.error("Container couldn't be removed, retrying...")
@@ -101,30 +90,29 @@ class Churn:
 
             # Retry until we find a working choice
             count = 0
-            while count < 3:
+            while count < 5:
                 try:
                     choice = random.choice(self.hosts)
-                    if choice != 'localhost':
-                        command_suspend = ["ssh", choice] + command_suspend
-
-                    container = random.choice(self.containers[choice])
+                    self._refresh_host_containers(choice)
+                    container, command_suspend = self._choose_container(command_suspend, choice)
                     self.logger.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
-                    while container == self.coordinator:
+                    while container in self.suspended_containers or container == self.coordinator:
+                        command_suspend = ["docker", "kill", '--signal=SIGSTOP']
                         choice = random.choice(self.hosts)
-                        container = random.choice(self.containers[choice])
-                    self.containers[choice].remove(container)
+                        self._refresh_host_containers(choice)
+                        container, command_suspend = self._choose_container(command_suspend, choice)
                 except (ValueError, IndexError):
                     count += 1
                     if not self.containers[choice]:
                         self.hosts.remove(choice)
                     self.logger.error('Error when trying to pick a container')
-                    if count == 3:
+                    if count == 5:
                         self.logger.error('Stopping churn because no container was found')
                         raise
                     continue
                 break
 
-            command_suspend += [container]
+            command_suspend.append(container)
             count = 0
             while count < 3:
                 try:
@@ -132,6 +120,7 @@ class Churn:
                     self.logger.info('Container {} on host {} was suspended'
                                      .format(container, choice))
                     self.peer_list.remove(container)
+                    self.suspended_containers.append(container)
                 except subprocess.CalledProcessError:
                     count += 1
                     self.logger.error("Container couldn't be removed, retrying...")
@@ -172,3 +161,21 @@ class Churn:
 
     def set_logger_level(self, log_level):
         self.logger.setLevel(log_level)
+
+    def _choose_container(self, command_suspend, host):
+        if host != 'localhost':
+            command_suspend = ["ssh", host] + command_suspend
+
+        container = random.choice(self.containers[host])
+        self.containers[host].remove(container)
+        return container, command_suspend
+
+    def _refresh_host_containers(self, host):
+        command_ps = ["docker", "ps", "-aqf",
+                      "name={service},status=running,ancestor={repo}{service}".format(
+                          service=self.service_name, repo=self.repository)]
+        if host != 'localhost':
+            command_ps = ["ssh", host] + command_ps
+
+        self.containers[host] = subprocess.check_output(command_ps,
+                                                        universal_newlines=True).splitlines()
