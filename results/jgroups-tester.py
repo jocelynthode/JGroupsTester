@@ -40,7 +40,6 @@ if args.ignore_events:
 
 local_deltas = []
 events_delivered = {}
-# events_sent_time = {}
 
 
 # We must create our own iter because iter disables the tell function
@@ -75,7 +74,7 @@ def extract_stats(file):
         events_sent_count = 0
         state = State.perfect
         for line in it:
-            match = re.match(r'(\d+) - Delivered: (.+)|(\d+) - Sending: (.+)|'
+            match = re.match(r'(\d+) - Delivered: ([^\s]+)|(\d+) - Sending: (.+)|'
                              r'.+ - Time given was smaller than current time', line)
             if not match:
                 continue
@@ -92,7 +91,6 @@ def extract_stats(file):
                 continue
             elif match.group(3):
                 if match.group(4) not in ignored_events:
-                    events_sent[match.group(4)] = int(match.group(3))
                     events_sent_count += 1
                 else:
                     print('Ignored Event!')
@@ -121,13 +119,11 @@ def all_stats(files):
     bar = progressbar.ProgressBar()
     file_stats = []
     local_deltas = []
-    # events_sent = {}
     events_delivered = {}
     for file in bar(files):
         with open(file, 'r') as f:
             file_stat, events_delivered_temp, local_deltas_temp = extract_stats(f)
             file_stats.append(file_stat)
-            # events_sent.update(events_sent_temp)
             for event, time in events_delivered_temp.items():
                 if event in events_delivered:
                     events_delivered[event].append(time)
@@ -153,7 +149,6 @@ with multiprocessing.Pool(processes=4) as pool:
     for result, events_delivered_stats, local_deltas_stats in pool.map(all_stats, chunk):
         stats += result
         local_deltas += local_deltas_stats
-        # events_sent_time.update(events_sent_stats)
         for event, times in events_delivered_stats.items():
             if event in events_delivered:
                 events_delivered[event] += times
