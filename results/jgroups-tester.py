@@ -24,16 +24,19 @@ parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse (must be given by experiments)')
 parser.add_argument('-e', '--experiments-nb', metavar='EXPERIMENT_NB', type=int, default=1,
                     help='How many experiments were run')
-parser.add_argument('-i', '--ignore-events', metavar='FILE', type=argparse.FileType('r'),
+parser.add_argument('-i', '--ignore-events', metavar='FILE', type=argparse.FileType('r'), nargs='+',
                     help='File containing unsent events due to churn (Given by check_order.py)')
 args = parser.parse_args()
 experiments_nb = args.experiments_nb
-ignored_events = []
+ignored_events = {}
+
 if args.ignore_events:
-    for line in iter(args.ignore_events):
-        match = re.match(r'.+TO IGNORE: (\[.+\])', line)
-        if match:
-            ignored_events.append(match.group(1))
+    for idx, file in enumerate(args.ignore_events, 1):
+        ignored_events[idx] = []
+        for line in iter(file):
+            match = re.match(r'.+TO IGNORE: (\[.+\])', line)
+            if match:
+                ignored_events[idx].append(match.group(1))
 
     print(ignored_events)
 
@@ -52,7 +55,7 @@ def textiter(file):
 
 def extract_stats(file):
     it = textiter(file)  # Force re-use of same iterator
-
+    experiment_nb = int(re.match(r'.*test-([0-9]+).*', file.name).group(1))
     def match_line(regexp_str):
         result = 0
         for line in it:
@@ -90,7 +93,7 @@ def extract_stats(file):
                 pos = file.tell()
                 continue
             elif match.group(3):
-                if match.group(4) not in ignored_events:
+                if match.group(4) not in ignored_events[experiment_nb]:
                     events_sent_count += 1
                 else:
                     print('Ignored Event!')
@@ -260,5 +263,5 @@ with open('event-sent-stats.csv', 'w', newline='') as csvfile:
     writer.writeheader()
     print('Writing events sent to csv file...')
     bar = progressbar.ProgressBar()
-    for event_sent in stats_events_sent:
+    for event_sent in bar(stats_events_sent):
         writer.writerow({'events-sent': event_sent})

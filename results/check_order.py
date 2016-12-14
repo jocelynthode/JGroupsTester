@@ -21,12 +21,13 @@ parser.add_argument('files', metavar='FILE', nargs='+', type=str,
                     help='the files to parse')
 parser.add_argument('--verbose', '-v', action='store_true',
                     help='Switch DEBUG logging on')
+parser.add_argument('--name', '-n', type=str, help='Log file name', default='order')
 args = parser.parse_args()
 if args.verbose:
     log_level = logging.DEBUG
 else:
     log_level = logging.INFO
-logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level, filename='order.log')
+logging.basicConfig(format='%(levelname)s: %(message)s', level=log_level, filename='{:s}.log'.format(args.name))
 
 
 def all_events():
