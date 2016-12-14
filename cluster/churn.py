@@ -61,9 +61,13 @@ class Churn:
 
         already_killed = False
         for i in range(to_suspend_nb):
-            command_suspend = ["docker", "pause"]
+            command_suspend = ["docker", "kill", '--signal=SIGUSR1']
+            self.logger.debug("Variables: {}, {} {}".format(already_killed, self.periods, self.kill_coordinator_round))
             if not already_killed and self.periods in self.kill_coordinator_round:
+                self.logger.debug("Killing coordinator")
                 command_suspend += [self.coordinator]
+                for host in self.hosts:
+                    self._refresh_host_containers(host)
                 for host, containers in self.containers.items():
                     if self.coordinator in containers:
                         if host != 'localhost':
@@ -97,7 +101,7 @@ class Churn:
                     container, command_suspend = self._choose_container(command_suspend, choice)
                     self.logger.debug('container: {:s}, coordinator: {:s}'.format(container, self.coordinator))
                     while container in self.suspended_containers or container == self.coordinator:
-                        command_suspend = ["docker", "pause"]
+                        command_suspend = ["docker", "kill", '--signal=SIGUSR1']
                         choice = random.choice(self.hosts)
                         self._refresh_host_containers(choice)
                         container, command_suspend = self._choose_container(command_suspend, choice)

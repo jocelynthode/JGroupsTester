@@ -13,9 +13,32 @@ echo "${TIME_TO_RUN}"
 echo "${RATE}"
 echo "${FIXED_RATE}"
 
+dstat_pid=0
+java_pid=0
+
+signal_handler() {
+    if [ $dstat_pid -ne 0 ]; then
+        kill $dstat_pid
+    fi
+    if [ $java_pid -ne 0 ]; then
+        kill -SIGSTOP $java_pid
+    fi
+    echo "KILLED PROCESSES"
+}
+
+trap 'signal_handler' SIGUSR1
+
 dstat -n -N eth0 --output "/data/capture/${MY_IP_ADDR[0]}.csv" &
+dstat_pid=${!}
+
 java -Xms100m -Xmx260m -Djgroups.bind_addr="${MY_IP_ADDR[0]}" \
 -Djgroups.tunnel.gossip_router_hosts="${TRACKER_IP}[12001]" -Djava.net.preferIPv4Stack=true \
 -cp ./jgroups-tester-1.0-SNAPSHOT-all.jar -Dlogfile.name="${MY_IP_ADDR[0]}" EventTesterKt \
---rate "$RATE" --fixed-rate "$FIXED_RATE" "$PEER_NUMBER" "$TIME" "$TIME_TO_RUN"
+--rate "$RATE" --fixed-rate "$FIXED_RATE" "$PEER_NUMBER" "$TIME" "$TIME_TO_RUN" &
+java_pid=${!}
+
+while true
+do
+  tail -f /dev/null & wait ${!}
+done
 

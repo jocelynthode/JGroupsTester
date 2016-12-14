@@ -66,6 +66,7 @@ def run_churn(time_to_start):
     churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME,
                   repository=repository)
     churn.set_logger_level(log_level)
+    logger.debug("Kill coordinator rounds: {}".format(churn.kill_coordinator_round))
 
     # Add initial cluster
     logger.debug('Initial size: {}'.format(nodes_trace.initial_size()))
