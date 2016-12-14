@@ -50,7 +50,10 @@ def run_churn(time_to_start):
         logger.info(args.synthetic)
         nodes_trace = NodesTrace(synthetic=args.synthetic)
     else:
-        nodes_trace = NodesTrace(database='database.db')
+        # Website02.db epoch starts 1st January 201. Exact formula obtained from Sebastien Vaucher
+        websites_epoch = 730753 + 1 + 86400. / (16 * 3600 + 11 * 60 + 10)
+        nodes_trace = NodesTrace(database='websites02.db', min_time=websites_epoch + 22200,
+                                 max_time=websites_epoch + 22200 + 10800, time_factor=3)
 
     if args.local:
         hosts_fname = None
@@ -63,11 +66,11 @@ def run_churn(time_to_start):
     churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME,
                   repository=repository)
     churn.set_logger_level(log_level)
+    logger.debug("Kill coordinator rounds: {}".format(churn.kill_coordinator_round))
 
     # Add initial cluster
     logger.debug('Initial size: {}'.format(nodes_trace.initial_size()))
     churn.add_processes(nodes_trace.initial_size())
-    nodes_trace.next()
     delay = int((time_to_start - (time.time() * 1000)) / 1000)
     logger.debug('Delay: {:d}'.format(delay))
     logger.info('Starting churn at {:s} UTC'
@@ -86,11 +89,12 @@ def run_churn(time_to_start):
     logger.debug(churn.peer_list)
     churn.coordinator = churn.peer_list.pop(0)
 
-    for _, to_kill, to_create in nodes_trace:
+    nodes_trace.next()
+    for size, to_kill, to_create in nodes_trace:
         logger.debug('curr_size: {:d}, to_kill: {:d}, to_create {:d}'
-                     .format(_, len(to_kill), len(to_create)))
+                     .format(size, len(to_kill), len(to_create)))
         churn.add_suspend_processes(len(to_kill), len(to_create))
-        time.sleep(delta)
+        time.sleep(delta / 1000)
 
     logger.info('Churn finished')
 
@@ -145,7 +149,7 @@ if __name__ == '__main__':
 
     churn_parser = subparsers.add_parser('churn', help='Activate churn')
     churn_parser.add_argument('delta', type=int,
-                              help='The interval between killing/adding new containers in s')
+                              help='The interval between killing/adding new containers in ms')
     churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+', default=[-1],
                               help='Kill the coordinator at the specified periods')
     churn_parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
@@ -238,7 +242,8 @@ if __name__ == '__main__':
 
         logger.info('Running JGroups tester -> Experiment: {:d}/{:d}'.format(run_nb, args.runs))
         if args.churn:
-            threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True).start()
+            thread = threading.Thread(target=run_churn, args=[time_to_start + args.delay], daemon=True)
+            thread.start()
             wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running with churn')
             if args.synthetic:
@@ -248,7 +253,8 @@ if __name__ == '__main__':
                 # Wait until only stopped containers are still alive
                 wait_on_service(SERVICE_NAME, containers_nb=total[0], total_nb=total[1])
             else:
-                raise NotImplementedError
+                thread.join()  # Wait for churn to finish
+                time.sleep(600)  # Wait 10 more minutes
         else:
             wait_on_service(SERVICE_NAME, 0, inverse=True)
             logger.info('Running without churn')
