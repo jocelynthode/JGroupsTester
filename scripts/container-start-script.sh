@@ -24,6 +24,11 @@ signal_handler() {
         kill -SIGSTOP $java_pid
     fi
     echo "KILLED PROCESSES"
+
+    while true
+    do
+      tail -f /dev/null & wait ${!}
+    done
 }
 
 trap 'signal_handler' SIGUSR1
@@ -37,8 +42,6 @@ java -Xms100m -Xmx260m -Djgroups.bind_addr="${MY_IP_ADDR[0]}" \
 --rate "$RATE" --fixed-rate "$FIXED_RATE" "$PEER_NUMBER" "$TIME" "$TIME_TO_RUN" &
 java_pid=${!}
 
-while true
-do
-  tail -f /dev/null & wait ${!}
-done
+wait ${java_pid}
+kill ${dstat_pid}
 
