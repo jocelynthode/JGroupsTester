@@ -14,7 +14,7 @@ def churn_tuple(s):
         raise TypeError("Tuples must be (int, int)")
 
 
-def get_peer_list(peer_number, path='../data/*.txt'):
+def get_peer_list(path='../data/*.txt'):
     with open(glob.glob(path)[0], 'r') as f:
         a_list = []
         for line in f.readlines():
@@ -24,8 +24,6 @@ def get_peer_list(peer_number, path='../data/*.txt'):
                 break
         if not a_list:
             raise LookupError('No view found in file {}'.format(f.name))
-        if len(a_list) < peer_number:
-            raise AssertionError('Peer List is smaller than expected')
         return a_list
 
 
@@ -36,7 +34,7 @@ class Churn:
     A class in charge of adding/suspending nodes to create churn in a JGroups SEQUENCER cluster
     """
 
-    def __init__(self, hosts_filename=None, kill_coordinator_round='', service_name='jgroups', repository=''):
+    def __init__(self, hosts_filename=None, kill_coordinator_round=None, service_name='jgroups', repository=''):
         self.containers = {}
         self.coordinator = None
         self.peer_list = []
@@ -50,7 +48,10 @@ class Churn:
         if hosts_filename is not None:
             with open(hosts_filename, 'r') as file:
                 self.hosts += list(line.rstrip() for line in file)
-        self.kill_coordinator_round = kill_coordinator_round
+        if kill_coordinator_round is None:
+            self.kill_coordinator_round = []
+        else:
+            self.kill_coordinator_round = kill_coordinator_round
         self.cluster_size = 0
 
     def suspend_processes(self, to_suspend_nb):
@@ -59,12 +60,14 @@ class Churn:
         if to_suspend_nb == 0:
             return
 
-        already_killed = False
         for i in range(to_suspend_nb):
             command_suspend = ["docker", "kill", '--signal=SIGUSR1']
-            self.logger.debug("Variables: {}, {} {}".format(already_killed, self.periods, self.kill_coordinator_round))
-            if not already_killed and self.periods in self.kill_coordinator_round:
-                self.logger.debug("Killing coordinator")
+            self.logger.info("Variables: {} {}".format(self.periods, self.kill_coordinator_round))
+            # If we missed kill period kill the coord at the next chance
+            if self.periods in self.kill_coordinator_round or \
+                    (len(self.kill_coordinator_round) > 0 and
+                     self.periods > self.kill_coordinator_round[0]):
+                self.logger.info("Killing coordinator")
                 command_suspend += [self.coordinator]
                 for host in self.hosts:
                     self._refresh_host_containers(host)
@@ -89,7 +92,7 @@ class Churn:
                             break
 
                 self.coordinator = self.peer_list.pop(0)
-                already_killed = True
+                del self.kill_coordinator_round[0]
                 continue
 
             # Retry until we find a working choice
@@ -159,6 +162,8 @@ class Churn:
         self.logger.info('Service scaled up to {:d}'.format(self.cluster_size))
 
     def add_suspend_processes(self, to_suspend_nb, to_create_nb):
+        if to_suspend_nb == 0 and to_create_nb == 0:
+            return
         self.suspend_processes(to_suspend_nb)
         self.add_processes(to_create_nb)
         self.periods += 1

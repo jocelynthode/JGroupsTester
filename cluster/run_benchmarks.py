@@ -53,7 +53,7 @@ def run_churn(time_to_start):
         # Website02.db epoch starts 1st January 201. Exact formula obtained from Sebastien Vaucher
         websites_epoch = 730753 + 1 + 86400. / (16 * 3600 + 11 * 60 + 10)
         nodes_trace = NodesTrace(database='websites02.db', min_time=websites_epoch + 22200,
-                                 max_time=websites_epoch + 22200 + 10800, time_factor=3)
+                                 max_time=websites_epoch + 22200 + 7200, time_factor=2)
 
     if args.local:
         hosts_fname = None
@@ -79,10 +79,10 @@ def run_churn(time_to_start):
     logger.info('Starting churn')
     try:
         if args.local:
-            churn.peer_list = get_peer_list(args.peer_number, LOCAL_DATA_FILES)
+            churn.peer_list = get_peer_list(LOCAL_DATA_FILES)
         else:
-            churn.peer_list = get_peer_list(args.peer_number)
-    except (LookupError, AssertionError):
+            churn.peer_list = get_peer_list()
+    except LookupError:
         logger.error('Experiment failed because not all peers started')
         return
 
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     churn_parser = subparsers.add_parser('churn', help='Activate churn')
     churn_parser.add_argument('delta', type=int,
                               help='The interval between killing/adding new containers in ms')
-    churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+', default=[-1],
+    churn_parser.add_argument('--kill-coordinator', '-k', type=int, nargs='+', default=[],
                               help='Kill the coordinator at the specified periods')
     churn_parser.add_argument('--synthetic', '-s', metavar='N', type=churn_tuple, nargs='+',
                               help='Pass the synthetic list (to_kill,to_create)(example: 0,100 0,1 1,0)')
