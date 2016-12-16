@@ -29,12 +29,12 @@ parser.add_argument('-i', '--ignore-events', metavar='FILE', type=argparse.FileT
 args = parser.parse_args()
 experiments_nb = args.experiments_nb
 ignored_events = {}
-
+print(args.ignore_events)
 if args.ignore_events:
     for idx, file in enumerate(args.ignore_events, 1):
         ignored_events[idx] = []
         for line in iter(file):
-            match = re.match(r'.+TO IGNORE: (\[.+\])', line)
+            match = re.match(r'.+TO IGNORE: (.+)', line)
             if match:
                 ignored_events[idx].append(match.group(1))
 

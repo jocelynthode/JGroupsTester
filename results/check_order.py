@@ -94,6 +94,8 @@ for name, stats in events.items():
     try:
         if complete_list == stats:
             logging.debug('{:s} and {:s} are ordered'.format(least_holes_file[0], name))
+            logging.info('{:s} and {:s} have exactly the same events ({:d})'.format(least_holes_file[0], name,
+                                                                                     len(complete_list)))
             continue
         sm = difflib.SequenceMatcher(None, complete_list, stats, False)
         blocks = list(sm.get_matching_blocks())
@@ -118,10 +120,12 @@ for name, a_list in events.items():
 if not has_duplicate:
     logging.info('No files has any duplicate!')
 
-# This part checks in case EpTO logs that it has sent an event but was interrupted before actually
+# This part checks in case JGroups logs that it has sent an event but was interrupted before actually
 # sending it
 no_problem = False
-if len(complete_list) == sent_events:
+a_list = [True for event_list in events.values() if len(event_list) == len(sent_events)]
+print("A list: {}".format(a_list))
+if a_list and all(a_list):
     no_problem = True
 
 # There might be a problem
