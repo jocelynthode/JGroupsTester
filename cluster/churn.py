@@ -52,6 +52,7 @@ class Churn:
             self.kill_coordinator_round = []
         else:
             self.kill_coordinator_round = kill_coordinator_round
+        self.kill_index = 0
         self.cluster_size = 0
 
     def suspend_processes(self, to_suspend_nb):
@@ -65,8 +66,8 @@ class Churn:
             self.logger.info("Variables: {} {}".format(self.periods, self.kill_coordinator_round))
             # If we missed kill period kill the coord at the next chance
             if self.periods in self.kill_coordinator_round or \
-                    (len(self.kill_coordinator_round) > 0 and
-                     self.periods > self.kill_coordinator_round[0]):
+                    (self.kill_index < len(self.kill_coordinator_round) and
+                     self.periods > self.kill_coordinator_round[self.kill_index]):
                 self.logger.info("Killing coordinator")
                 command_suspend += [self.coordinator]
                 for host in self.hosts:
@@ -92,7 +93,7 @@ class Churn:
                             break
 
                 self.coordinator = self.peer_list.pop(0)
-                del self.kill_coordinator_round[0]
+                self.kill_index += 1
                 continue
 
             # Retry until we find a working choice

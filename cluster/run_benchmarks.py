@@ -63,6 +63,7 @@ def run_churn(time_to_start):
         repository = DISTANT_REPOSITORY
 
     delta = args.delta
+    logging.debug("Kill_coordinator = {}".format(args.kill_coordinator))
     churn = Churn(hosts_filename=hosts_fname, kill_coordinator_round=args.kill_coordinator, service_name=SERVICE_NAME,
                   repository=repository)
     churn.set_logger_level(log_level)
