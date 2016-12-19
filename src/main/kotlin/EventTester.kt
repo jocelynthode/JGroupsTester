@@ -57,6 +57,9 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
         }
     }
 
+    /**
+     * Starts the peer
+     */
     fun start() {
             channel.receiver = this
             channel.connect("EventCluster")
@@ -79,6 +82,9 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
         }
     }
 
+    /**
+     * Stops the peer
+     */
     fun stop() {
         channel.disconnect()
         logger.info("Events sent: ${channel.sentMessages}")
@@ -105,6 +111,9 @@ class EventTester(val peerNumber: Int, val rate: Long, val startTime: Long, val 
     }
 }
 
+/**
+ * Main function to be called when starting the Program
+ */
 fun main(args: Array<String>) {
     val parser = ArgumentParsers.newArgumentParser("JGroups tester")
     parser.defaultHelp(true)

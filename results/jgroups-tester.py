@@ -1,6 +1,14 @@
 #!/usr/bin/env python3.5
+"""
+Author: Jocelyn Thode
+
+This script extracts all useful data from the logs obtained by running JGroups benchmarks
+
+It will create csv files to be used by dstat-parser.py as well as a console output that can be used to verify results
+"""
 import argparse
 import csv
+import logging
 import multiprocessing
 import re
 import statistics
@@ -25,6 +33,7 @@ parser.add_argument('files', metavar='FILE', nargs='+', type=str,
 parser.add_argument('-i', '--ignore-events', metavar='FILE', type=argparse.FileType('r'), nargs='+',
                     help='File containing unsent events due to churn (Given by check_order.py)')
 args = parser.parse_args()
+logging.basicConfig(format='%(message)s', level=logging.INFO)
 ignored_events = {}
 
 if args.ignore_events:
@@ -36,7 +45,7 @@ if args.ignore_events:
             if match:
                 ignored_events[idx].append(match.group(1))
 
-    print(ignored_events)
+    logging.info(ignored_events)
 
 experiments_nb = len(list(ignored_events.keys()))
 local_deltas = []
@@ -143,7 +152,7 @@ def global_time(stats):
 
 stats = {}
 chunk = list(map(lambda x: x.tolist(), np.array_split(np.array(args.files), 4)))
-print("Importing files...")
+logging.info("Importing files...")
 with multiprocessing.Pool(processes=4) as pool:
     for result, events_delivered_stats, local_deltas_stats in tqdm.tqdm(pool.imap_unordered(all_stats, chunk),
                                                                         total=len(chunk)):
@@ -178,15 +187,15 @@ maximum = max(durations)
 average = statistics.mean(durations)
 global_average = statistics.mean(global_times)
 
-print("JGroups")
-print("-------------------------------------------")
-print("Least time to deliver in total : %d ms" % mininum)
-print("Most time to deliver in total : %d ms" % maximum)
-print("Average time to deliver per peer in total: %d ms" % average)
-print("Population std fo the time to deliver: %f ms" % statistics.pstdev(durations, average))
-print("Average global time to deliver on all peers per experiment: %d ms" % global_average)
-print("Population std fo the time to deliver: %f ms" % statistics.pstdev(global_times, global_average))
-print("-------------------------------------------")
+logging.info("JGroups")
+logging.info("-------------------------------------------")
+logging.info("Least time to deliver in total : {:d} ms".format(mininum))
+logging.info("Most time to deliver in total : {:d} ms".format(maximum))
+logging.info("Average time to deliver per peer in total: {:d} ms".format(average))
+logging.info("Population std fo the time to deliver: {:f} ms" .format(statistics.pstdev(durations, average)))
+logging.info("Average global time to deliver on all peers per experiment: {:d} ms".format(global_average))
+logging.info("Population std fo the time to deliver: {:f} ms".format(statistics.pstdev(global_times, global_average)))
+logging.info("-------------------------------------------")
 
 all_delivered = []
 stats_events_sent = []
@@ -194,16 +203,16 @@ for experiment_nb, the_stats in stats.items():
     sent_sum = sum(messages_sent[experiment_nb])
     received_sum = sum(messages_received[experiment_nb])
     stats_events_sent.append(sent_sum)
-    print("Experiment %d:" % experiment_nb)
-    print("Total events sent: %d" % sent_sum)
-    print("Total events received on average: %f"
-          % (received_sum / len(messages_received[experiment_nb])))
-    print("-----------")
+    logging.info("Experiment {:d}:" % experiment_nb)
+    logging.info("Total events sent: {:d}" % sent_sum)
+    logging.info("Total events received on average: {:f}".format(
+        sum(received_sum) / len(messages_received[experiment_nb])))
+    logging.info("-----------")
     ratios = [(msg_received / sent_sum) for msg_received in messages_received[experiment_nb]]
-    print("Best ratio events received/sent: %.10g" % max(ratios))
-    print("Worst ratio events received/sent: %.10g" % min(ratios))
-    print("Total ratio events received/sent on average per peer : %.10g" % (statistics.mean(ratios)))
-    print("-------------------------------------------")
+    logging.info("Best ratio events received/sent: {:.10g}".format(max(ratios)))
+    logging.info("Worst ratio events received/sent: {:.10g}".format(min(ratios)))
+    logging.info("Total ratio events received/sent on average per peer : {:.10g}".format((statistics.mean(ratios))))
+    logging.info("-------------------------------------------")
     all_delivered.append(sent_sum == received_sum / len(messages_received[experiment_nb]))
 
 
@@ -212,37 +221,37 @@ def check_list_all_identical(lst):
 
 
 if check_list_all_identical(all_delivered):
-    print("All events sent were delivered in every experiments")
+    logging.info("All events sent were delivered in every experiments")
 else:
     for idx, result in enumerate(all_delivered, 1):
         if not result:
-            print("Experiment %d didn't deliver every event sent" % idx)
+            logging.info("Experiment {:d} didn't deliver every event sent".format(idx))
 
 with open('local-time-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['local_time'])
     writer.writeheader()
-    print('Writing local times to csv file...')
+    logging.info('Writing local times to csv file...')
     for duration in tqdm.tqdm(durations):
         writer.writerow({'local_time': duration})
 
 with open('global-time-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['global_time'])
     writer.writeheader()
-    print('Writing global times to csv file...')
+    logging.info('Writing global times to csv file...')
     for duration in tqdm.tqdm(global_times):
         writer.writerow({'global_time': duration})
 
 with open('local-delta-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['delta'])
     writer.writeheader()
-    print('Writing local deltas to csv file...')
+    logging.info('Writing local deltas to csv file...')
     for delta in tqdm.tqdm(local_deltas):
         writer.writerow({'delta': delta})
 
 # with open('global-delta-stats.csv', 'w', newline='') as csvfile:
 #     writer = csv.DictWriter(csvfile, ['delta'])
 #     writer.writeheader()
-#     print('Writing global deltas to csv file...')
+#     logging.info('Writing global deltas to csv file...')
 #     bar = progressbar.ProgressBar()
 #     for event, time in bar(events_sent_time.items()):
 #         times = events_delivered[event]
@@ -253,6 +262,6 @@ with open('local-delta-stats.csv', 'w', newline='') as csvfile:
 with open('event-sent-stats.csv', 'w', newline='') as csvfile:
     writer = csv.DictWriter(csvfile, ['events-sent'])
     writer.writeheader()
-    print('Writing events sent to csv file...')
+    logging.info('Writing events sent to csv file...')
     for event_sent in tqdm.tqdm(stats_events_sent):
         writer.writerow({'events-sent': event_sent})
