@@ -1,18 +1,31 @@
-# jgroups-tester
+# JGroups
 
-This dummy application was created to test JGroups against EpTO. A working implementation of EpTO can be found at : [https://github.com/jocelynthode/epto-neem](https://github.com/jocelynthode/epto-neem)
+This is a a SEQUENCER implementation mimicking the behavior of EpTO Tester[[1]](https://github.com/jocelynthode/EptoTester) to compare JGroups against EpTO
 
-## Compile & Run
+# Requirements & Running
 
-If you want to compile it and run it directly from gradle, just use : `./gradlew --daemon run`
+## Requirements
+* Docker >= 1.12
+* OpenJDK or OracleJDK >= 8
+* Read the [Cluster instructions](https://github.com/jocelynthode/epto-neem/blob/master/cluster_instructions.md)
 
-Alternatively if you want to run it not using gradle :
+## Running
+If you want to run JGroups localy execute: `cluster/run_benchmarks.py` with the `--local` option on
 
-* To compile use `./gradlew --daemon shadowJar`. This will create a jar containing everything you need.
+If you want to run it on your cluster follow the [Cluster instructions](https://github.com/jocelynthode/jgroupstester/blob/master/cluster_instructions.md)
 
-* If you then want to run it separately you can do : `java -cp jgroups-tester-1.0-SNAPSHOT-all.jar EventTesterKt`
+If you only want to obtain and run the Java program. Gradle with shadowJar is used to generate a jar file.
 
+# Verification Scripts
 
-## Scripts
+Scripts are provided to verify the ordering of JGroups and extract various informations from JGroups logs. They are located in the folder results.
 
-A small script was provided to run multiple instance concurrently locally. Take a look in `scripts/`
+# Churn Generation
+
+## FTA 
+The [Failure Trace Archive](http://fta.scem.uws.edu.au) regroups various failure traces. These traces can be exploited by the python classes `cluster/nodes_trace.py` and `cluster/churn.py`.
+
+If you want to visualize the different traces I recommend using Sébastien Vaucher's script that generates plots for traces.[[2]](https://github.com/sebyx31/ErasureBench/tree/master/projects/fta-parser)
+
+## Synthetic 
+The above classes can also be used to generate simple synthethic churn. To find out how to use them, please refer to the help of `cluster/run_benchmarks.py`
