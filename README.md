@@ -12,7 +12,7 @@ This is a a SEQUENCER implementation mimicking the behavior of EpTO Tester[[1]](
 ## Running
 If you want to run JGroups localy execute: `cluster/run_benchmarks.py` with the `--local` option on
 
-If you want to run it on your cluster follow the [Cluster instructions](https://github.com/jocelynthode/jgroupstester/blob/master/cluster_instructions.md)
+If you want to run it on your cluster follow the [Cluster instructions](https://github.com/jocelynthode/eptotester/blob/master/cluster_instructions.md)
 
 If you only want to obtain and run the Java program. Gradle with shadowJar is used to generate a jar file.
 
